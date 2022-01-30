@@ -1,0 +1,336 @@
+// [[Rcpp::plugins(cpp11)]]
+// [[Rcpp::depends(RcppParallel)]]
+# include <Rcpp.h>
+# include <RcppParallel.h>
+# include <chrono>
+# include "pcg/pcg_random.hpp"
+# include "h/dnyTasking.hpp"
+# include <random>
+# include "h/SampleNoRep.hpp"
+using namespace Rcpp;
+# define vec std::vector
+# define RNG pcg32
+# define UINT std::size_t
+# define posinf std::numeric_limits<num>::max()
+# define clk std::chrono::time_point<std::chrono::steady_clock>
+# define Fnowtime std::chrono::steady_clock::now()
+# define SEC std::chrono::seconds
+
+
+// Return mean of y values of points in hyperrectangle.
+template<typename ing, typename num>
+num computeYmean(ing *X, ing nrow, ing ncol, num *y,
+                 ing *lb, ing *ub, ing minNpoint)
+{
+  UINT ny = 0, minNpoint_ = minNpoint;
+  num ysum = 0;
+  for(UINT i = 0, iend = nrow; i < iend; ++i)
+  {
+    if(ny + (iend - i) < minNpoint_) return posinf;
+    ing *x = i * ncol + X;
+    ing k = 0;
+    for(; k < ncol and x[k] >= lb[k] and x[k] <= ub[k]; ++k);
+    if(k < ncol) continue;
+    ++ny;
+    ysum += y[i];
+  }
+  return ysum / ny;
+}
+
+
+
+
+template<typename ing>
+void updateBounds(ing *lb, ing *ub, ing *ubub,
+                  ing *lbrst, ing *ubrst, ing dim,
+                  RNG &rng, std::uniform_int_distribution<ing> &U)
+{
+  std::uniform_int_distribution<ing> Bernoulli(0, 1);
+  for(ing i = 0; i < dim; ++i)
+  {
+    ing ububi = ubub[i] - 1;
+    lbrst[i] = std::min<ing> (std::max<ing> (0, lb[i] + U(rng)), ububi);
+    ubrst[i] = std::min<ing> (std::max<ing> (0, ub[i] + U(rng)), ububi);
+    if(lbrst[i] > ubrst[i])
+    {
+      if(Bernoulli(rng) == 0) lbrst[i] = ubrst[i];
+      else ubrst[i] = lbrst[i];
+    }
+  }
+}
+
+
+// U is {-1, 0, 1}
+template<typename ing>
+void updateBounds(ing *lb, ing *ub, ing *ubub,
+                  ing *lbrst, ing *ubrst, ing dim,
+                  RNG &rng, std::uniform_int_distribution<ing> &U,
+                  SampleNoRep<ing, ing> &noRepSampler,
+                  ing minNfeature, ing maxNfeature)
+{
+  std::uniform_int_distribution<ing> Bernoulli(0, 1);
+  std::uniform_int_distribution<ing> NsampledFeature(minNfeature, maxNfeature);
+  ing Nfeature2sample = NsampledFeature(rng);
+  ing *sampledFeature = noRepSampler(Nfeature2sample, rng);
+  for(ing k = 0; k < Nfeature2sample; ++k)
+  {
+    ing i = sampledFeature[k];    
+    ing ububi = ubub[i] - 1;
+    lbrst[i] = std::min<ing> (std::max<ing> (0, lb[i] + U(rng) * Bernoulli(rng)), ububi);
+    ubrst[i] = std::min<ing> (std::max<ing> (0, ub[i] + U(rng) * Bernoulli(rng)), ububi);
+    if(lbrst[i] > ubrst[i])
+    {
+      if(Bernoulli(rng) == 0) lbrst[i] = ubrst[i];
+      else ubrst[i] = lbrst[i];
+    }
+  }
+}
+
+
+
+
+template<typename ing, typename num>
+struct BY
+{
+  num ymean; ing *x;
+  BY(){}
+  BY(num ymean, ing *x): ymean(ymean), x(x) {}
+}; // Point to the lbub pair.
+template<typename ing, typename num>
+bool BYorder (BY<ing, num> &u, BY<ing, num> &v) { return u.ymean < v.ymean; }
+
+
+template<typename ing, typename num>
+void pmax(num *x, num *y, ing size, num *rst)
+{
+  for(ing i = 0; i < size; ++i)
+    rst[i] = std::max<num> (x[i], y[i]);
+}
+
+
+template<typename ing, typename num, bool moveAllFeatureBoxEdges>
+struct HyperrectanglePara: public RcppParallel::Worker
+{
+  ing dim, nobs, NchildEach, minNpoint, Nparent;
+  ing minNfeature, maxNfeature;
+  ing *ubub;
+  std::uniform_int_distribution<ing> *U;
+  RNG *rngs;
+  SampleNoRep<ing, ing> *noRepSams;
+  BY<ing, num> *BYvec;
+  ing *dataMat;
+  num *y;
+  dynamicTasking *dT;
+
+
+  void operator()(std::size_t st, std::size_t end)
+  {
+    for(;;)
+    {
+      std::size_t objI = 0;
+      if(!dT->nextTaskID(objI)) break;
+      RNG &rng = rngs[objI];
+      ing *lbrst = BYvec[objI + Nparent].x;
+      ing *ubrst = lbrst + dim;
+      num &ymean = BYvec[objI + Nparent].ymean;
+      ing whichParent = objI / NchildEach;
+      ing *lb = BYvec[whichParent].x;
+      ing *ub = lb + dim;
+
+
+      if(moveAllFeatureBoxEdges) updateBounds<ing> (lb, ub, ubub, lbrst, ubrst, dim, rng, *U);
+      else updateBounds<ing> (lb, ub, ubub, lbrst, ubrst, dim, rng, *U, 
+                              noRepSams[st], minNfeature, maxNfeature);
+      ymean = computeYmean<ing, num> (dataMat, nobs, dim, y, lbrst,
+                                      ubrst, minNpoint);
+    }
+  }
+  // dataX is row-major: each column is an observation.
+  HyperrectanglePara(ing *dataX, num *dataY, ing dim, ing Nobs, ing minNpoint,
+       ing *lbub, ing Nparent, ing minNfeature, ing maxNfeature, 
+       ing NchildEach, ing seed, ing maxCore,
+       double tlimit, UINT convergenceTail, UINT totalGenLimit, vec<num> &finalVals,
+       vec<vec<ing> > &finalCandi, num rankDelta, num deltaDecreasingRate):
+  dim(dim), nobs(Nobs), NchildEach(NchildEach), minNpoint(minNpoint),
+  Nparent(Nparent), minNfeature(minNfeature), maxNfeature(maxNfeature), 
+  dataMat(dataX), y(dataY)
+  {
+    
+    
+    UINT Ntask = INT(NchildEach) * Nparent;
+    vec<ing> lbubMat((Ntask + Nparent) * dim * 2);
+    vec<BY<ing, num> > lbubMatPtrsContainer(Ntask + Nparent);
+    BYvec = &lbubMatPtrsContainer[0];
+    for(UINT i = 0, iend = lbubMatPtrsContainer.size(); i < iend; ++i)
+    {
+      auto &u = BYvec[i];
+      u.ymean = 0;
+      u.x = &lbubMat[0] + i * dim * 2;
+    }
+
+
+    for(ing i = 0; i < Nparent; ++i)
+    {
+      ing *l = lbub + i * 2 * INT(dim), *u = l + dim;
+      BYvec[i].ymean = computeYmean<ing, num> (
+          dataX, Nobs, dim, dataY, l, u, minNpoint);
+      std::copy(l, l +  2 * dim, BYvec[i].x);
+    }
+
+
+    vec<ing> ububvec(dim, 0); ubub = &ububvec[0];
+    for(ing i = 0; i < Nobs; ++i)
+      pmax<ing, ing> (dataX + INT(dim) * i, ubub, dim, ubub);
+
+
+    vec<RNG> rngvec(Ntask);
+    for(ing i = 0, iend = Ntask; i < iend; ++i) rngvec[i] = RNG(i + seed);
+    rngs = &rngvec[0];
+    
+    
+    vec<SampleNoRep<ing, ing> > SampleNoRepVec(maxCore);
+    for(ing i = 0; i < maxCore; ++i) SampleNoRepVec[i].set(dim, rngs[0]);
+    noRepSams = &SampleNoRepVec[0];
+    
+
+    dynamicTasking dt(maxCore, Ntask); dT = &dt;
+    UINT totalIter = 0;
+    UINT totalGenerationNoImprove = 0;
+    auto endtime = Fnowtime + SEC(UINT(tlimit));
+    num currentVal = posinf;
+    while(true)
+    {
+      ing rankDeltaInt = std::max<ing> (1, std::round(rankDelta));
+      std::uniform_int_distribution<ing> Uint(-rankDeltaInt, rankDeltaInt);
+      rankDelta *= deltaDecreasingRate;
+      U = &Uint;
+
+
+      ++totalIter;
+      // Rcout << totalIter << ", " << totalGenLimit << "\n";
+      if(totalGenerationNoImprove > convergenceTail or totalIter > totalGenLimit or
+         ((totalIter & (8 - 1)) == 0 and Fnowtime > endtime)) break;
+
+
+      RcppParallel::parallelFor(0, maxCore, *this);
+      dT->reset(maxCore, Ntask);
+
+
+      std::nth_element(BYvec, BYvec + Nparent,
+                       BYvec + Nparent + Ntask, BYorder<ing, num>);
+      num newval = std::min_element(
+        BYvec, BYvec + Nparent, BYorder<ing, num>)->ymean;
+      if(newval < currentVal)
+      {
+        currentVal = newval;
+        totalGenerationNoImprove = 0;
+        Rcout << "Current optimum = " << currentVal << "\n";
+      }
+      else ++totalGenerationNoImprove;
+    }
+    Rcout << "Total generations = " << int(totalIter) - 1 << "\n";
+
+
+    finalVals.resize(Nparent);
+    finalCandi.resize(Nparent);
+    for(ing i = 0; i < Nparent; ++i)
+    {
+      finalVals[i] = BYvec[i].ymean;
+      finalCandi[i].assign(BYvec[i].x, BYvec[i].x + 2 * dim);
+    }
+  }
+};
+
+
+
+
+// [[Rcpp::export]]
+List findHyperrecEdges(IntegerMatrix X, NumericVector y, int minNpoint,
+                       IntegerMatrix lbub, int fertility, int seed, int maxCore,
+                       double tlimitSeconds, int convergenceTail, int totalGenLimit,
+                       int initialRankDelta, double deltaDecreasingRate,
+                       int minNfeatureToPerturb, int maxNfeatureToPerturb)
+{
+  int dim = X.nrow();
+  int Nobs = y.size();
+  int Nparent = lbub.ncol();
+  vec<double> finalVals;
+  vec<vec<int> > finalCandi;
+  minNfeatureToPerturb = std::max<int> (1, minNfeatureToPerturb);
+  maxNfeatureToPerturb = std::min<int> (dim, maxNfeatureToPerturb);
+  minNfeatureToPerturb = std::min<int> (maxNfeatureToPerturb, minNfeatureToPerturb);
+  if(minNfeatureToPerturb == dim and maxNfeatureToPerturb == dim)
+    HyperrectanglePara<int, double, true> (
+      &X[0], &y[0], dim, Nobs, minNpoint, &lbub[0], Nparent, 
+      minNfeatureToPerturb, maxNfeatureToPerturb, fertility,
+      seed, maxCore, tlimitSeconds, convergenceTail, totalGenLimit,
+      finalVals, finalCandi, initialRankDelta, deltaDecreasingRate);
+  else HyperrectanglePara<int, double, false> (
+      &X[0], &y[0], dim, Nobs, minNpoint, &lbub[0], Nparent, 
+      minNfeatureToPerturb, maxNfeatureToPerturb, fertility,
+      seed, maxCore, tlimitSeconds, convergenceTail, totalGenLimit,
+      finalVals, finalCandi, initialRankDelta, deltaDecreasingRate);
+  return List::create(Named("LBUB") = finalCandi, Named("ymean") = finalVals);
+}
+
+
+
+
+// [[Rcpp::export]]
+NumericMatrix testPcg(int size, int nvec)
+{
+  std::uniform_real_distribution<double> U(0.0, 1.0);
+  std::vector<RNG> rngv(size);
+  for(int i = 0, iend = size; i < iend; ++i)
+  {
+    rngv[i].seed(42 + i);
+  }
+  NumericMatrix rst(size, nvec);
+  for(int i = 0; i < nvec; ++i)
+  {
+    double *x = &rst[0] + std::size_t(i) * size;
+    for(int j = 0; j < size; ++j)
+    {
+      x[j] = U(rngv[j]);
+    }
+  }
+  return rst;
+}
+
+
+// [[Rcpp::export]]
+IntegerVector testNoRepSample(int size)
+{
+  pcg32 rg(42);
+  SampleNoRep<int, int> A;
+  A.set(size, rg);
+  std::uniform_int_distribution<int> U(1, size);
+  int Nloop = 1000;
+  IntegerVector rst(Nloop);
+  for(int i = 0; i < Nloop; ++i)
+  {
+    int n = U(rg);
+    int *y = A(n, rg);
+    rst[i] = y[0];
+  }
+  return rst;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

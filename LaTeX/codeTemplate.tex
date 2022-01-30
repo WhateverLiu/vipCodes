@@ -1,0 +1,316 @@
+\documentclass{article}
+\usepackage{setspace}\onehalfspacing
+%\documentclass[journal]{IEEEtran}
+\usepackage[title]{appendix}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{wrapfig}
+\usepackage{mdframed}
+\usepackage{amsbsy}
+\usepackage{hyperref}
+\usepackage{wrapfig}
+\usepackage{animate}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage{algcompatible}
+\usepackage{tcolorbox}
+%\usepackage{caption}
+\usepackage[font={small,sf}]{caption}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+\usepackage{float}
+\usepackage{multicol}
+\usepackage{caption}
+\usepackage{amsfonts}
+\usepackage{subfig}
+\usepackage{color}
+\usepackage{subfig}
+%\usepackage[demo]{graphicx}
+\usepackage{url}
+\usepackage[export]{adjustbox}[2011/08/13]
+\usepackage{textpos}
+\usepackage[percent]{overpic}
+
+
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+
+%\newcommand{\minus}{\scalebox{0.8}{$-$}}
+\newcommand{\conv}{\scalebox{0.6}{$\perp$}}
+\newcommand{\como}{\scalebox{0.6}{$+$}}
+
+
+\definecolor{mygreen}{rgb}{0,0.45,0}
+\definecolor{mygray}{rgb}{0.99,0.99,0.99}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+\definecolor{darkblue}{rgb}{0.0, 0.0, 0.55}
+
+
+\usepackage{listings,lstautogobble}
+\lstset{
+	autogobble=true,
+	xleftmargin=0.25pt,
+	backgroundcolor=\color{mygray},   % choose the background color; you must add \usepackage{color} or \usepackage{xcolor}; should come as last argument
+	basicstyle=\small\ttfamily,        % the size of the fonts that are used for the code
+	breakatwhitespace=false,         % sets if automatic breaks should only happen at whitespace
+	breaklines=true,                 % sets automatic line breaking
+	captionpos=t,                    % sets the caption-position to bottom
+	commentstyle=\color{mygreen},    % comment style
+	%deletekeywords={...},            % if you want to delete keywords from the given language
+	escapeinside={\%*}{*)},          % if you want to add LaTeX within your code
+	extendedchars=true,              % lets you use non-ASCII characters; for 8-bits encodings only, does not work with UTF-8
+%	frame=single,	                   % adds a frame around the code
+	keepspaces=true,                 % keeps spaces in text, useful for keeping indentation of code (possibly needs columns=flexible)
+	keywordstyle=\color{blue},       % keyword style
+	language=R,                 % the language of the code
+	morekeywords={*,...},           % if you want to add more keywords to the set
+	numbers=none,                    % where to put the line-numbers; possible values are (none, left, right)
+%	numbersep=2pt,                   % how far the line-numbers are from the code
+	numberstyle=\tiny\color{white}, % the style that is used for the line-numbers
+	rulecolor=\color{black},         % if not set, the frame-color may be changed on line-breaks within not-black text (e.g. comments (green here))
+	showspaces=false,                % show spaces everywhere adding particular underscores; it overrides 'showstringspaces'
+	showstringspaces=false,          % underline spaces within strings only
+	showtabs=false,                  % show tabs within strings adding particular underscores
+	stepnumber=1,                    % the step between two line-numbers. If it's 1, each line will be numbered
+	stringstyle=\color{mymauve},     % string literal style
+	tabsize=2,	                   % sets default tabsize to 2 spaces
+	title=\lstname                   % show the filename of files included with \lstinputlisting; also try caption instead of title
+	keepspaces=true
+	otherkeywords={!,!=,~,$,*,\&,+,-,^,\%,\%/\%,\%*\%,\%\%,<-,<<-,_,/}
+}
+
+
+\usepackage{geometry}
+\geometry{a4paper, left=1.25in, top=1.25in, right=1.25in, bottom=1.25in}
+
+
+%\usepackage[utf8]{inputenc}
+%\usepackage{times}
+
+%\renewcommand{\familydefault}{cmr}
+
+
+
+\hypersetup{
+	colorlinks   = true,
+	linkcolor    = blue,
+	urlcolor = blue
+}
+
+\begin{document}
+
+\title{The title}
+\author{Charlie Wusuo Liu}
+\date{June 1, 2021}
+
+
+	\maketitle
+	\begin{abstract}
+       
+	\end{abstract}
+	\tableofcontents	
+
+\pagestyle{plain}
+
+
+\section{Problem 1 (Buying/selling stocks)}
+
+
+
+
+%\clearpage
+%
+%\section{Code section}
+%
+%\renewcommand{\lstlistingname}{Code}
+%\begin{lstlisting}[caption={Fractional factorial design.}, label={ffd}]
+%tmp = FrF2::FrF2(16, nfactors = 10)
+%rst = as.data.frame(tmp)
+%cn = colnames(rst)
+%rst = rst[colnames(rst)]
+%rst = as.data.frame(matrix(as.integer(as.matrix(rst)), ncol = 10))
+%colnames(rst) = cn
+%write.csv(rst, file = "data/frf2.csv", row.names = F)
+%tmp = t(rst) % * % as.matrix(rst)
+%write.csv(tmp, file = "data/innerProd.csv")
+%\end{lstlisting}
+%
+%\clearpage
+%
+%\renewcommand{\lstlistingname}{Code}
+%\begin{lstlisting}[caption={Simulation R code. The code requires R package "Rcpp" and Rtools35.}, label={subsetreg}]
+%Rcpp::sourceCpp("cppcode.cpp", verbose = T)
+%arriveLambda = 50
+%Npeople = 1e6L
+%
+%
+%combo = as.data.frame(t(expand.grid(Nserver = 31:50, Nscanner = 31:50)))
+%mt = list()
+%for(i in 1:length(combo))
+%{
+%	cat(i, "")
+%	Nserver = combo[[i]][1]
+%	Nscanner = combo[[i]][2]
+%	
+%	
+%	singleServerMean = 0.75
+%	scannerMinMax = c(0.5, 1)
+%	allServerMean = singleServerMean / Nserver
+%	
+%	
+%	tArrival = cumsum(rexp(Npeople, rate = arriveLambda))
+%	dtIDcheck = rexp(Npeople, rate = 1 / allServerMean)
+%	dtScan = runif(Npeople, scannerMinMax[1], scannerMinMax[2])
+%	
+%	
+%	tAfterIDcheck = tIDcheckEnd(tArrival, dtIDcheck)
+%	tAfterScan = tScanEnd(tAfterIDcheck, Nscanner, dtScan)
+%	dt = tAfterScan - tArrival
+%	mt[[i]] = mean(dt)
+%}
+%
+%
+%tmp = data.frame(expand.grid(Nserver = 31:50, Nscanner = 31:50), t = unlist(mt))
+%tmp = tmp[tmp$t < 15,]
+%tmp = tmp[order(tmp$Nserver + tmp$Nscanner), ]
+%tmp
+%\end{lstlisting}
+%
+%
+%\clearpage
+%
+%\renewcommand{\lstlistingname}{Code}
+%\begin{lstlisting}[caption={"cppcode.cpp": Simulation C++ functions.}, label={len}]
+%// [[Rcpp::plugins(cpp11)]]
+%# include <Rcpp.h>
+%using namespace Rcpp;
+%# define vec std::vector
+%
+%
+%// [[Rcpp::export]]
+%NumericVector tIDcheckEnd(NumericVector tArrival, NumericVector dtIDcheck)
+%{
+%	NumericVector rst(tArrival.size());
+%	rst[0] = tArrival[0] + dtIDcheck[0];
+%	for(int i = 1, iend = tArrival.size(); i < iend; ++i)
+%	{
+%		rst[i] = std::max<double> (
+%		rst[i - 1], tArrival[i]) + dtIDcheck[i];
+%	}
+%	return rst;
+%}
+%
+%
+%struct it { int id; double time; };
+%struct fastQueue
+%{
+%	vec<it> t;
+%	it *head, *tail;
+%	void set(int capacity)
+%	{
+%		t.resize(capacity);
+%		head = &t[0]; 
+%		tail = head;
+%	}
+%	fastQueue() {}
+%	fastQueue(int capacity) { set(capacity); }
+%	void push(int id, double time) 
+%	{ 
+%		++tail; 
+%		(tail - 1)->id = id;
+%		(tail - 1)->time = time;
+%	}
+%	int size() { return tail - head; }
+%	void pop(double currentTime,
+%	double *dtScan,
+%	double *endTime)
+%	{
+%		while(head < tail)
+%		{
+%			double tmpt = head->time + dtScan[head->id];
+%			if(tmpt >= currentTime) break;
+%			endTime[head->id] = tmpt;
+%			++head;
+%		}
+%	}
+%};
+%
+%
+%int shortestQ(vec<fastQueue> &Q)
+%{
+%	int rst = 0, leastSize = Q[0].size();
+%	for(int i = 1, iend = Q.size(); i < iend; ++i)
+%	{
+%		if(Q[i].size() < leastSize)
+%		{
+%			leastSize = Q[i].size();
+%			rst = i;
+%		}
+%	}
+%	return rst;
+%}
+%
+%
+%// timeAfterIDcheck is sorted.
+%// [[Rcpp::export]]
+%NumericVector tScanEnd(NumericVector timeAfterIDcheck,
+%int Nscanner, NumericVector dtScan)
+%{
+%	vec<fastQueue> Q(Nscanner);
+%	for(int i = 0; i < Nscanner; ++i) Q[i].set(dtScan.size());
+%	NumericVector tend(dtScan.size());
+%	for(int i = 0, iend = dtScan.size(); i < iend; ++i)
+%	{
+%		for(int j = 0; j < Nscanner; ++j)
+%		{
+%			Q[j].pop(timeAfterIDcheck[i], &dtScan[0], &tend[0]);
+%		}
+%		int q = shortestQ(Q);
+%		Q[q].push(i, timeAfterIDcheck[i]);
+%	}
+%	for(int j = 0; j < Nscanner; ++j)
+%	{
+%		Q[j].pop(1e300, &dtScan[0], &tend[0]);
+%	}
+%	return tend;
+%}
+%\end{lstlisting}
+
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
