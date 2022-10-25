@@ -1,3 +1,4 @@
+#pragma once
 // [[Rcpp::plugins(cpp17)]]
 #include <chrono>
 

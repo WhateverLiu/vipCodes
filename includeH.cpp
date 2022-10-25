@@ -23,6 +23,14 @@ jmp_buf env;
 using namespace Rcpp;
 
 
-
+// Headers for building .exe without Rcpp.
+#include <unordered_set>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <numeric>
+#include <chrono>
+#include <algorithm>
+#include <cmath>
 
 

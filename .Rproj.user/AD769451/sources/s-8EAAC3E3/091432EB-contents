@@ -1,0 +1,129 @@
+// [[Rcpp::plugins(cpp17)]]
+#include <Rcpp.h>
+using namespace Rcpp;
+#include "MCcopula/copulaMCforPaper.hpp"
+
+
+/*
+// [[Rcpp::export]]
+NumericVector MCtrainGaussianCopulaTest(
+    NumericVector x, NumericVector y, double r, int maxCore)
+{
+  std::sort(x.begin(), x.end());
+  std::sort(y.begin(), y.end());
+  MCtrainGaussianCopula<int, double> trainer;
+  CharlieThreadPool cp(maxCore);
+  double EX = 0, EX2 = 0, EY = 0, EY2 = 0;
+  for (int i = 0, iend = x.size(); i < iend; ++i)
+  {
+    EX  += x[i];
+    EX2 += x[i] * x[i];
+    EY  += y[i];
+    EY2 += y[i] * y[i];
+  }
+  EX  /= x.size();
+  EX2 /= x.size();
+  EY  /= y.size();
+  EY2 /= y.size();
+  double Xvar = EX2 - EX * EX, Yvar = EY2 - EY * EY;
+  double targetVar = Xvar + 2 * r * std::sqrt(Xvar * Yvar) + Yvar;
+  // Rcpp::Rcout << "targetVar = " << targetVar << "\n";
+  NumericVector rst(x.size());
+  double theta = 0.1, thetaMin = 0, thetaMax = 1, eps = 0.001;
+  int maxIter = 100;
+  theta = trainer.train(&x[0], &y[0], x.size(), targetVar, &rst[0],
+                        thetaMin, theta, thetaMax, maxIter, eps, &cp);
+  Rcpp::Rcout << "theta = " << theta << "\n";
+  return rst;
+}
+*/
+
+
+// [[Rcpp::export]]
+NumericVector MCgaussianCopulaTest(
+    NumericVector x, NumericVector y, double theta,
+    int maxCore = 13, int seed = 42, bool decomp = false)
+{
+  CharlieThreadPool cp(maxCore);
+  CharlieSort csort;
+  MCgaussianCopula<int, double> aggtor(&cp, &csort, x.size());
+  RNG rng(seed);
+  NumericVector rst(x.size());
+  aggtor(&x[0], &y[0], x.size(), &rst[0], theta, decomp, rng);  
+  return rst;
+}
+
+
+// [[Rcpp::export]]
+NumericVector MCgumbelCopulaTest(
+    NumericVector x, NumericVector y, double theta,
+    int maxCore = 13, int seed = 42, bool decomp = false, 
+    bool useMarshallOlkin = false)
+{
+  CharlieThreadPool cp(maxCore);
+  CharlieSort csort;
+  MCgumbelCopula<int, double> aggtor(&cp, &csort, x.size(), useMarshallOlkin);
+  RNG rng(seed);
+  NumericVector rst(x.size());
+  aggtor(&x[0], &y[0], x.size(), &rst[0], theta, decomp, rng);  
+  return rst;
+}
+
+
+// [[Rcpp::export]]
+NumericVector MCmorgensternCopulaTest(
+    NumericVector x, NumericVector y, double theta,
+    int maxCore = 13, int seed = 42, bool decomp = false)
+{
+  CharlieThreadPool cp(maxCore);
+  CharlieSort csort;
+  MCmorgensternCopula<int, double> aggtor(&cp, &csort, x.size());
+  RNG rng(seed);
+  NumericVector rst(x.size());
+  aggtor(&x[0], &y[0], x.size(), &rst[0], theta, decomp, rng);  
+  return rst;
+}
+
+
+// [[Rcpp::export]]
+NumericVector MCjoeCopulaTest(
+    NumericVector x, NumericVector y, double theta,
+    int maxCore = 13, int seed = 42, bool decomp = false)
+{
+  CharlieThreadPool cp(maxCore);
+  CharlieSort csort;
+  MCjoeCopula<int, double> aggtor(&cp, &csort, x.size());
+  RNG rng(seed);
+  NumericVector rst(x.size());
+  aggtor(&x[0], &y[0], x.size(), &rst[0], theta, decomp, rng);  
+  return rst;
+}
+
+
+// [[Rcpp::export]]
+NumericVector MCtCopulaTest(
+    NumericVector x, NumericVector y, double theta, int df,
+    int maxCore = 13, int seed = 42, bool decomp = false)
+{
+  CharlieThreadPool cp(maxCore);
+  CharlieSort csort;
+  MCtCopula<int, double> aggtor(&cp, &csort);
+  RNG rng(seed);
+  NumericVector rst(x.size());
+  aggtor(&x[0], &y[0], x.size(), &rst[0], theta, df, decomp, rng);  
+  return rst;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
