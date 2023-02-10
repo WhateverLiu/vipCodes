@@ -15,12 +15,12 @@
 #' 
 #' @param wait  Should the function wait till all processes complete. Default \code{TRUE}.
 #' 
-#' @param cleanTempFirst  Should the temporary files be cleaned first. Default \code{TRUE}.
+#' @param cleanTempFirst  Should the temporary files be cleaned first. Default \code{FALSE}.
 #' 
 #' @param keepTempFolder  Should the temporary files be kept after execution. Default \code{TRUE}.
 #' 
 #' @param RscriptExePath  Path to \code{Rscript} executable. If \code{NULL}, 
-#' assume \code{Rscript} is executable in the operating system command prompt.
+#' assume \code{Rscript} is runnable in the operating system command prompt.
 #' 
 #' @return A list or a vector of character strings. 
 #' 
@@ -84,6 +84,7 @@ para <- function(X, commonData, fun,
   tmpDir = paste0('CharlieTempMP-', tmpDir, '-', paste0(strsplit(
     Sys.timezone(), split = '/')[[1]], collapse = '-'))
   dir.create(tmpDir, showWarnings = F)
+  tmpDir = normalizePath(tmpDir, winslash = "/")
   
   
   funNames = ls()[sapply(ls(), function(x)
@@ -143,11 +144,18 @@ para <- function(X, commonData, fun,
   
   codeDir = paste0(tmpDir, "/script")
   dir.create(codeDir, showWarnings = F)
+  
+  
+  logDir = paste0(tmpDir, "/log")
+  dir.create(logDir, showWarnings = F)
  
   
   for (i in startInd:(length(blocks) - 1L))
   {
     s = list()
+    s[[length(s) + 1]] = paste0("lg = file('", tmpDir, "/log/t-", i, "-.txt', open = 'wt')")
+    s[[length(s) + 1]] = "sink(lg, type = 'output')"
+    s[[length(s) + 1]] = "sink(lg, type = 'message')"
     s[[length(s) + 1]] = paste0("load('", tmpDir, "/input/t-", i, "-.Rdata')")
     s[[length(s) + 1]] = paste0("load('", tmpDir, "/commonData.Rdata')")
     if (length(sourceCppRcodePath) != 0)
@@ -158,6 +166,7 @@ para <- function(X, commonData, fun,
     s[[length(s) + 1]] = "rst = lapply(X, function(x) fun(x, commonData))"
     s[[length(s) + 1]] = paste0("save(rst, file = '", tmpDir, "/output/rst-", i, "-.Rdata')")
     s[[length(s) + 1]] = paste0("write('', file = '", tmpDir, "/complete/f-", i, "')")
+    s[[length(s) + 1]] = "sink(); sink(); close(lg)"
     writeLines(unlist(s), con = paste0(tmpDir, "/script/s-", i, "-.R"))
   }
   
