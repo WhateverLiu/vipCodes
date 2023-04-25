@@ -62,9 +62,9 @@ struct BananaFun
   
   BananaFun(){}
   BananaFun(std::pair<num, num> initParam, 
-             ing popuSize, ing survivalSize,
-             num iniNoise, num minNoise,
-             ing maxGen, ing NgenerationsTillMinLearningRate):
+            ing popuSize, ing survivalSize,
+            num iniNoise, num minNoise,
+            ing maxGen, ing NgenerationsTillMinLearningRate):
     Nsurvival(survivalSize)
   {
     param.assign(popuSize, initParam);
@@ -83,16 +83,16 @@ struct BananaFun
 
 // [[Rcpp::export]]
 vec<vec<double> > testGA(Rcpp::NumericVector initxy, 
-              double initNoise, double minNoise,
-              int popuSize, int survivalSize, 
-              int maxGen, int Ngen2minNoise,
-              std::string reproduceSelection, int randomSeed,
-              int maxCore = 7)
+                         double initNoise, double minNoise,
+                         int popuSize, int survivalSize, 
+                         int maxGen, int Ngen2minNoise,
+                         std::string reproduceSelection, int randomSeed,
+                         int maxCore = 7)
 {
   
   typedef BananaFun<int, double, LinearLRschedule<int, double> > GAobj;
   GAobj ga(std::pair<double, double> (initxy[0], initxy[1]), 
-      popuSize, survivalSize, initNoise, minNoise, maxGen, Ngen2minNoise);
+           popuSize, survivalSize, initNoise, minNoise, maxGen, Ngen2minNoise);
   
   
   // template <typename ing, typename num, typename GA>
@@ -108,29 +108,9 @@ vec<vec<double> > testGA(Rcpp::NumericVector initxy,
   
   CharlieThreadPool cp(maxCore);
   vec<vec<double> > rst = runGAobj<int, double, GAobj> (
-          ga, reproduceSelection, NcandidateToSaveLearningCurve, 
-          maxGen, randomSeed, &cp, true);
+    ga, reproduceSelection, NcandidateToSaveLearningCurve, 
+    maxGen, randomSeed, &cp, true);
   
   
   return rst;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

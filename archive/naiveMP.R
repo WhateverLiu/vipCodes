@@ -15,12 +15,11 @@
 #' 
 #' @param wait  Should the function wait till all processes complete. Default \code{TRUE}.
 #' 
-#' @param cleanTempFirst  Should the temporary files be cleaned first. Default \code{FALSE}.
-#' 
-#' @param keepTempFolder  Should the temporary files be kept after execution. Default \code{TRUE}.
-#' 
 #' @param RscriptExePath  Path to \code{Rscript} executable. If \code{NULL}, 
 #' assume \code{Rscript} is runnable in the operating system command prompt.
+#'
+#' @param verbose  If 0 < verbose < 1 and if there are \code{N} items to be 
+#' processed, print the progress by each \code{N * verbose} items.
 #' 
 #' @return A list or a vector of character strings. 
 #' 
@@ -53,10 +52,10 @@
 #'
 para <- function(X, commonData, fun, 
                  maxNprocess = 15L, 
+                 MPtempDir = "../CharlieTempMP/C",
                  wait = TRUE,
-                 cleanTempFirst = FALSE,
-                 keepTempFolder = TRUE, 
-                 RscriptExePath = NULL)
+                 RscriptExePath = NULL,
+                 verbose = 0.01)
 {
   if (length(X) == 0) return(NULL)
   
@@ -71,23 +70,23 @@ para <- function(X, commonData, fun,
   }
   
   
-  if (cleanTempFirst)
-  {
-    fnames = list.files()
-    todelete = fnames[grepl("CharlieTempMP-", fnames)]
-    unlink(todelete, recursive = T)
-  }
-  
-  
   tmpDir = paste0(strsplit(
-    as.character(Sys.time()), split = "[:]| ")[[1]], collapse = '-')
-  tmpDir = paste0('CharlieTempMP-', tmpDir, '-', paste0(strsplit(
-    Sys.timezone(), split = '/')[[1]], collapse = '-'))
-  dir.create(tmpDir, showWarnings = F)
+    as.character(format(Sys.time(), usetz = T)), 
+    split = "[:]| ")[[1]], collapse = '-')
+  tmpDir = paste0(MPtempDir, '-', tmpDir)
+  tmpDir = paste0(
+    tmpDir, "-",
+    paste0(Sys.info()[c("nodename", "user")], collapse = "-"), "-", 
+    Sys.getpid())
+  tmpDir = gsub(" ", replacement = "-", tmpDir)
+  
+  
+  dir.create(tmpDir, showWarnings = F, recursive = T)
   tmpDir = normalizePath(tmpDir, winslash = "/")
   
   
-  funNames = ls()[sapply(ls(), function(x)
+  lsobjs = unique(c(ls(envir = .GlobalEnv), ls()))
+  funNames = lsobjs[sapply(lsobjs, function(x)
   {
     eval(parse(text = paste0("is.function(", x, ")")))
   })]
@@ -112,10 +111,12 @@ para <- function(X, commonData, fun,
   loadedLibNames = (.packages())
   
   
-  eval(parse(text = paste0(
-    "save(", paste0(funNames, collapse = ", "),
-    ", loadedLibNames, commonData, ",
-    paste0("file = '", tmpDir, "/commonData.Rdata')"))))
+  # print(funNames)
+  tx = paste0("save(", paste0(funNames, collapse = ", "),
+              ", loadedLibNames, commonData, ",
+              paste0("file = '", tmpDir, "/commonData.Rdata')"))
+  # print(tx)
+  eval(parse(text = tx))
   
   
   datDir = paste0(tmpDir, "/input")
@@ -153,20 +154,41 @@ para <- function(X, commonData, fun,
   for (i in startInd:(length(blocks) - 1L))
   {
     s = list()
-    s[[length(s) + 1]] = paste0("lg = file('", tmpDir, "/log/t-", i, "-.txt', open = 'wt')")
+    s[[length(s) + 1]] = paste0("tmpDir = '", tmpDir, "'")
+    s[[length(s) + 1]] = paste0("i = ", i, "L")
+    s[[length(s) + 1]] = "lg = file(paste0(tmpDir, '/log/t-', i, '-.txt'), open = 'wt')"
     s[[length(s) + 1]] = "sink(lg, type = 'output')"
     s[[length(s) + 1]] = "sink(lg, type = 'message')"
-    s[[length(s) + 1]] = paste0("load('", tmpDir, "/input/t-", i, "-.Rdata')")
-    s[[length(s) + 1]] = paste0("load('", tmpDir, "/commonData.Rdata')")
+    s[[length(s) + 1]] = "load(paste0(tmpDir, '/input/t-', i, '-.Rdata'))"
+    s[[length(s) + 1]] = "load(paste0(tmpDir, '/commonData.Rdata'))"
     if (length(sourceCppRcodePath) != 0)
     {
       for (x in sourceCppRcodePath) s[[length(s) + 1]] = paste0("source('", x, "')")
     }
     s[[length(s) + 1]] = "for (x in loadedLibNames) eval(parse(text = paste0('library(', x, ')')))"
-    s[[length(s) + 1]] = "rst = lapply(X, function(x) fun(x, commonData))"
-    s[[length(s) + 1]] = paste0("save(rst, file = '", tmpDir, "/output/rst-", i, "-.Rdata')")
-    s[[length(s) + 1]] = paste0("write('', file = '", tmpDir, "/complete/f-", i, "')")
-    s[[length(s) + 1]] = "sink(); sink(); close(lg)"
+    
+    
+    s[[length(s) + 1]] = paste0("verbose = ", verbose)
+    s[[length(s) + 1]] = "rst = list()"
+    s[[length(s) + 1]] = "if (verbose > 0.5 || verbose <= 0) rst = lapply(X, function(x) fun(x, commonData)) else {"
+    s[[length(s) + 1]] = "
+      gap = max(1L, as.integer(round(length(X) * verbose)))
+      cat('N(items) =', length(X), ': ')
+      for (k in 1:length(X))
+      {
+        rst[[k]] = fun(X[[k]], commonData)
+        if (k %% gap == 0L) cat(k, '')
+      }
+    }"
+    
+    
+    # s[[length(s) + 1]] = "rst = lapply(X, function(x) fun(x, commonData))"
+    s[[length(s) + 1]] = "save(rst, file = paste0(tmpDir, '/output/rst-', i, '-.Rdata'))"
+    s[[length(s) + 1]] = 
+      "finishName = paste0('f-', Sys.info()['nodename'], '-pid', Sys.getpid(), '-', i)"
+    # s[[length(s) + 1]] = "write('', file = paste0(tmpDir, '/complete/', finishName))"
+    s[[length(s) + 1]] = "file.create(paste0(tmpDir, '/complete/', finishName))"
+    s[[length(s) + 1]] = "sink(type = 'message'); sink(type = 'output'); close(lg)"
     writeLines(unlist(s), con = paste0(tmpDir, "/script/s-", i, "-.R"))
   }
   
@@ -180,7 +202,21 @@ para <- function(X, commonData, fun,
   
   if (wait)
   {
-    rst = lapply(X[blocks[1]:(blocks[2] - 1L)], function(x) fun(x, commonData))
+    
+    k = 1L
+    Nitem2process = blocks[2] - blocks[1]
+    gap = max(1L, as.integer(round(Nitem2process * verbose)))
+    if (verbose < 1 && verbose > 0) cat("Core 0 will process N(item) =", Nitem2process, ": ")
+    rst = lapply(X[blocks[1]:(blocks[2] - 1L)], function(x) 
+    {
+      if (verbose < 1 && verbose > 0)
+      {
+        if (k %% gap == 0L) cat(k, '')
+        k <<- k + 1L  
+      }
+      fun(x, commonData)
+    })
+    if (verbose < 1 && verbose > 0 ) cat('\n')
     
     
     nfile = length(blocks) - 2L
@@ -195,15 +231,26 @@ para <- function(X, commonData, fun,
     }
     
     
-    if (!keepTempFolder) unlink(tmpDir, recursive = T)
     return (unlist(result, recursive = F))
   }
   
   
   # If not to wait, files have already been saved on the disk.
   system(paste0(RscriptExePath, " ", tmpDir, "/script/s-", 1, "-.R"), wait = F)
-  paste0(normalizePath(tmpDir, winslash = '/'), "/output/rst-", 
-         1:(length(blocks) - 1L), "-.Rdata")
+  
+  
+  results = new.env()
+  results$resultPaths = paste0(
+    normalizePath(tmpDir, winslash = '/'), "/output/rst-",
+    1:(length(blocks) - 1L), "-.Rdata")
+  results$load = function()
+  {
+    unlist(lapply(get("resultPaths", results), function(x) { 
+      load(x); rst }), recursive = F)
+  }
+  results
+  
+  
 }
 
 
