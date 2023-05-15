@@ -10,6 +10,7 @@ import datatable
 import matplotlib.font_manager as pltFontManager
 import datetime
 import pytz
+import importlib
 
 
 myTimeZone = timezone = pytz.timezone("America/New_York")
@@ -32,6 +33,22 @@ letters = ('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
 LETTERS = ('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z')
 
+
+# ==============================================================================
+# Import python script like it is a module.
+# ==============================================================================
+def impt(modulePath, objsToImportInGlobals = None):
+  '''
+  modulePath should not have .py as the extension.
+  '''
+  md = importlib.import_module(modulePath)
+  if objsToImportInGlobals is None or len(objsToImportInGlobals) == 0:
+    return md
+  if type(objsToImportInGlobals) is str:
+    globals()[objsToImportInGlobals] = getattr(md, objsToImportInGlobals)
+  else:
+    for x in objsToImportInGlobals: globals()[x] = getattr(md, x)
+    
 
 def valrange(x):
   return np.array([np.min(x), np.max(x)])
