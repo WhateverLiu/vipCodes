@@ -278,21 +278,22 @@ cppDryRun <- function (file = "", env = globalenv(), rebuild = FALSE,
 
 
 sourceCppCharlie = function(file = "", env = globalenv(), rebuild = FALSE, 
-                            cacheDir = getOption("rcpp.cache.dir", tempdir()), 
+                            # cacheDir = getOption("rcpp.cache.dir", tempdir()),
+                            cacheDir = '../dlls',
                             cleanupCacheDir = FALSE, showOutput = verbose, 
                             verbose = getOption("verbose"), 
                             windowsDebugDLL = FALSE, 
                             compileOptionsToBeRemoved = c(
                               "-Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -Wp,-D_GLIBCXX_ASSERTIONS -fexceptions -fstack-protector-strong -grecord-gcc-switches -specs=/usr/lib/rpm/redhat/redhat-hardened-cc1 -specs=/usr/lib/rpm/redhat/redhat-annobin-cc1", 
                               "-fasynchronous-unwind-tables -fstack-clash-protection -fcf-protection",
-                              "-Wl,-z,relro  -Wl,-z,now -specs=/usr/lib/rpm/redhat/redhat-hardened-ld", 
-							  " -g "
+                              "-Wl,-z,relro  -Wl,-z,now -specs=/usr/lib/rpm/redhat/redhat-hardened-ld"
+                              , " -g "
                             ), 
                             Oflag = "-Ofast",
                             rebuildUsingRcppIfFail = TRUE)
 {
   
-  
+  dir.create(cacheDir, showWarnings = F, recursive = T)
   rebuild = as.logical(rebuild)
   cleanupCacheDir = as.logical(cleanupCacheDir)
   verbose = as.logical(verbose)

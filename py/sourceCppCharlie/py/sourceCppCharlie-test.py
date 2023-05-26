@@ -19,7 +19,9 @@ exec(open('py/sourceCppCharlie.py').read())
 
 
 tmp = sourceCppCharlie(
-  'cpp/listOfNumpyArrays.cpp', sanitize = True, 
+  'cpp/listOfNumpyArrays.cpp', 
+  # compilerPath = 'C:/rtools42/x86_64-w64-mingw32.static.posix/bin/g++.exe',
+  sanitize = False, 
   exportModuleOnly = False, rebuild = True)
 
 

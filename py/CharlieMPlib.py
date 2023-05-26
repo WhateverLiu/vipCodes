@@ -200,6 +200,7 @@ def CharlieParaOnCluster (
   
   
   os.makedirs(tmpDir, exist_ok = True)
+  ofilesDir = os.path.abspath(ofilesDir)
   os.makedirs(ofilesDir, exist_ok = True)
   
   
@@ -258,9 +259,9 @@ def CharlieParaOnCluster (
   for i in range(len(bounds) - 1):
     qsubStr = "echo 'cd " + workDir + "; " + pythonExePath + " " + tmpDir + \
       "/script/s-" + str(i) + "-.py" + "' | " + \
-      "qsub -N '" + jobName + "-" + str(i) + "' -o " + workDir + "/" + \
+      "qsub -N '" + jobName + "-" + str(i) + "' -o " + \
       ofilesDir + " -l h_vmem=" + str(memGBperProcess) + "G -pe threads " + \
-      str(NthreadPerProcess)
+      str(NthreadPerProcess) + " -j y"
     qsubStrs.append(qsubStr)
   
   

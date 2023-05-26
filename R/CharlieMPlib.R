@@ -1,5 +1,83 @@
 
 
+#' Group jobs
+#' 
+#' Group jobs such that the computing cost for each group is approximately the 
+#' same.
+#' 
+#' @param ns  A numeric or integer vector. \code{ns[i]} is the computing cost
+#' for the i-th job.
+#' 
+#' @param Nchunks  The number of groups for the jobs.
+#' 
+#' @return  A list of index vectors.
+#' 
+equalChunk = function(ns, Nchunks)
+{
+  chunkSize = max(1L, as.integer(round(sum(ns) / Nchunks)))
+  id = 1:length(ns)
+  odr = order(ns, decreasing = T)
+  id = id[odr]
+  ns = ns[odr]
+  i = 1L; j = 1L
+  rst = list()
+  ijSum = ns[i]
+  while (T)
+  {
+    if (j > length(ns))
+    {
+      if (i <= length(ns)) 
+        rst[[length(rst) + 1]] = id[i:length(ns)]
+      break
+    }
+    if (ijSum > chunkSize)
+    {
+      rst[[length(rst) + 1]] = id[i:j]
+      i = j + 1L
+      j = i
+      ijSum = ns[i]
+    }
+    else
+    {
+      j = j + 1L
+      ijSum = ijSum + ns[j]
+    }
+  }
+  rst
+}
+
+
+
+
+# costs is in descending order.
+equalChunk = function(costs, Ncore)
+{
+  # coreLoad = max(1L, as.integer(round(sum(ns) / Nchunks)))
+  coreLoad = sum(rev(costs)) / Ncore
+  Njob = length(costs)
+  rst = list(1L)
+  i = 1L; j = 2L
+  while (T)
+  {
+    if (j >= Njob + 1L)
+    {
+      rst[[length(rst) + 1L]] = j
+      break
+    }
+    chunkCost = sum(costs[(j - 1L):i])
+    if (chunkCost > coreLoad)
+    {
+      rst[[length(rst) + 1L]] = j
+      i = j
+    }
+    j = j + 1L
+  }
+  unlist(rst)
+}
+
+
+
+
 
 #' Naive distributed computing
 #' 
@@ -50,14 +128,25 @@
 #' 
 #' @example inst/examples/para.R
 #'
-CharliePara <- function(X, commonData, fun, 
-                 maxNprocess = 15L, 
-                 MPtempDir = "../tempFiles/CharlieTempMP/C",
-                 wait = TRUE,
-                 RscriptExePath = NULL,
-                 verbose = 0.01)
+CharliePara <- function(
+  X, commonData, fun, 
+  maxNprocess = 15L, 
+  MPtempDir = "../tempFiles/CharlieTempMP/C",
+  wait = TRUE,
+  RscriptExePath = NULL,
+  verbose = 0.01,
+  estimatedCosts = NULL
+)
 {
   if (length(X) == 0) return(NULL)
+  
+  
+  if (!is.null(estimatedCosts))
+  {
+    originalOdr = order(estimatedCosts, decreasing = T)
+    X = X[originalOdr]
+    
+  }
   
   
   maxNprocess = max(1L, min(maxNprocess, length(X)))
@@ -120,7 +209,7 @@ CharliePara <- function(X, commonData, fun,
   
   
   datDir = paste0(tmpDir, "/input")
-  dir.create(datDir, showWarnings = F)
+  dir.create(datDir, showWarnings = F, recursive = T)
   
   
   Xresv = X
@@ -358,12 +447,6 @@ double stu(NumericVector x) { return std::accumulate(x.begin(), x.end(), 0.0); }
 #' @param verbose  If 0 < verbose < 1 and if there are \code{N} items to be 
 #' processed, print the progress by each \code{N * verbose} items.
 #' 
-#' @param sshPasswordPathIsActuallyPassWord TRUE indicates that sshPasswordPath
-#' is actually the string of password.
-#' 
-#' @param waitUserInputPassWord TRUE ignores sshPasswordPath, sshPasswordPathIsActuallyPassWord
-#' and will ask user to type in password that is masked.
-#' 
 #' @return A list or an environment. 
 #' 
 #' \code{wait = TRUE} returns a list. The \code{i}th element is the result
@@ -412,7 +495,7 @@ CharlieParaOnCluster <- function(
   wait = TRUE,
   RscriptExePath = NULL,
   clusterHeadnodeAddress = "rscgrid139.air-worldwide.com",
-  sshPasswordPath = "pswd/passwd.Rdata",
+  sshPasswordPath = "../data/passwd.Rdata",
   ofilesDir = "../recycleBin/Ofiles",
   MPtempDir = "../tempFiles/CharlieTempMP/C",
   jobName = "CH",
@@ -434,6 +517,7 @@ CharlieParaOnCluster <- function(
   
   
   dir.create(ofilesDir, showWarnings = F, recursive = T)
+  ofilesDir = normalizePath(ofilesDir, winslash = '/')
   
   
   if (length(X) == 0) { # setwd(curDir);
@@ -576,15 +660,18 @@ CharlieParaOnCluster <- function(
   
   
   qsubStrs = list()
-  workDir = getwd()
+  workDir  = normalizePath(getwd(), winslash = '/')
+  
+  
   for (i in 1:(length(blocks) - 1L))
   {
     qsubStr = paste0("echo 'cd ", workDir, "; ",
                      RscriptExePath, " ", tmpDir, "/script/s-", i, "-.R",
                      "' | ",
-                     "qsub -N '", jobName, "-", i, "' -o ", workDir, "/", 
+                     "qsub -N '", jobName, "-", i, "' -o ", # workDir, "/", 
                      ofilesDir, " -l h_vmem=",
-                     memGBperProcess, "G -pe threads ", NthreadPerProcess)
+                     memGBperProcess, "G  -pe threads ", NthreadPerProcess, 
+                     " -j y")
     
     
     qsubStrs[[i]] = qsubStr
@@ -598,12 +685,12 @@ CharlieParaOnCluster <- function(
     if (verbose) cat("Try connecting ", clusterHeadnodeAddress, "\n")
     
     
-    passwd = sshPasswordPath
+    try(load(sshPasswordPath))
     try({session = ssh::ssh_connect(clusterHeadnodeAddress, passwd = passwd)})
     if (!is.null(session)) break
     
     
-    try(load(sshPasswordPath))
+    passwd = sshPasswordPath
     try({session = ssh::ssh_connect(clusterHeadnodeAddress, passwd = passwd)})
     if (!is.null(session)) break
     
