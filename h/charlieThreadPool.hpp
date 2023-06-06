@@ -154,25 +154,57 @@ struct CharlieThreadPool
 
 
 
-
+// =============================================================================
 // DO NOT DELETE!!!
 // Example use:
+// =============================================================================
+
+
 // // [[Rcpp::export]]
-// double paraSummation(NumericVector x, int maxCore = 15)
+// int paraSummation(IntegerVector x, int maxCore = 15, int grainSize = 100)
 // {
-//   NumericVector S(maxCore);
+//   IntegerVector S(maxCore);
 //   CharlieThreadPool ctp(maxCore);
-//   ParaFor(0, x.size(), [&](std::size_t i, std::size_t t)
+//   ctp.parFor(0, x.size(), [&](std::size_t i, std::size_t t)->bool
 //   {
-//     S[t] += x[i];
-//   }, maxCore, 128, [](std::size_t t){}, [](std::size_t t){});
-//   return std::accumulate(S.begin(), S.end(), 0.0);
+//     S[t] += (x[i] % 31 + x[i] % 131 + x[i] % 73 + x[i] % 37 + x[i] % 41) % 7;
+//     return false; // Return true indicates early return.
+//   }, grainSize, 
+//   [](std::size_t t)->bool{ return false; }, 
+//   [](std::size_t t)->bool{ return false; });
+//   return std::accumulate(S.begin(), S.end(), 0);
 // }
 
 
+// =============================================================================
+// R code to test:
+// tmp2 = sample(1000L, 0.3e8, replace= T); 
+// paraSummation(tmp2, maxCore = 2, grainSize = 100) - 
+//   paraSummation(tmp2, maxCore = 100, grainSize = 100)
+// =============================================================================
 
 
+// // [[Rcpp::export]]
+// double paraSummationFloat(NumericVector x, int maxCore = 15, int grainSize = 100)
+// {
+//   NumericVector S(maxCore);
+//   CharlieThreadPool ctp(maxCore);
+//   ctp.parFor(0, x.size(), [&](std::size_t i, std::size_t t)->bool
+//   {
+//     S[t] += (x[i] / 31 + x[i] / 131 + x[i] / 73 + x[i] / 37 + x[i] / 41) / 7;
+//     return false; // Return true indicates early return.
+//   }, grainSize,  
+//   [](std::size_t t)->bool{ return false; }, 
+//   [](std::size_t t)->bool{ return false; });
+//   return std::accumulate(S.begin(), S.end(), 0.0);
+// } 
 
+
+// =============================================================================
+// R code to test.
+// =============================================================================
+// tmp2 = runif(1e8); paraSummationFloat(tmp2, maxCore = 1, grainSize = 100) / 
+//   paraSummationFloat(tmp2, maxCore = 100, grainSize = 100) - 1
 
 
 
