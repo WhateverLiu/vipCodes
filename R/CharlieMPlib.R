@@ -91,6 +91,11 @@ equalChunk = function(costs, Ncore)
 #' 
 #' @param maxNprocess  Maximum number of processes to spawn. Default 15.
 #' 
+#' @param MPtempDir  Temporary directory for storing saved files.
+#' 
+#' @param estimatedCosts  A numeric vector storing the estimated computational costs
+#'   for the jobs. Default to \code{NULL}.
+#' 
 #' @param wait  Should the function wait till all processes complete. Default \code{TRUE}.
 #' 
 #' @param RscriptExePath  Path to \code{Rscript} executable. If \code{NULL}, 
