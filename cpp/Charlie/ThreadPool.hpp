@@ -3,6 +3,9 @@
 #include <atomic>
 
 
+namespace Charlie {
+
+
 struct dynamicTasking
 {
   std::size_t jobEnd, grainSize;
@@ -35,7 +38,7 @@ struct dynamicTasking
 };
 
 
-struct CharlieThreadPool
+struct ThreadPool
 {
   int maxCore;
   volatile bool *haveFood; // haveFood[maxCore] will be appEnd indicator.
@@ -83,20 +86,27 @@ struct CharlieThreadPool
   // ===========================================================================
   // maxCore will be changed if it exceeds the maximum number of cores on machine.
   // ===========================================================================
-  void initialize(int &maxCore)
+  void initialize(int &&maxCore)
   {
+    // Rcout << "maxCore = " << maxCore << "\n";
     maxCore = std::max<int> (1, std::min<int> (
       std::thread::hardware_concurrency(), maxCore));
+    // Rcout << "std::thread::hardware_concurrency() = " << std::thread::hardware_concurrency() << "\n";
     this->maxCore = maxCore;
     if (maxCore <= 1) return;
     
     
-    haveFood = new volatile bool [maxCore + 1]; // haveFood[maxCore] == true
-    // would imply the thread pool is about to be destroyed.
+    // =========================================================================
+    // haveFood[maxCore] == true would imply the thread pool is about to be 
+    //   destroyed.
+    // =========================================================================
+    haveFood = new volatile bool [maxCore + 1]; 
+    
+    
     std::fill(haveFood, haveFood + maxCore + 1, false);
     tp = new std::thread [maxCore];
     for (int i = 1; i < maxCore; ++i) // Fire up all the worker threads.
-      tp[i] = std::thread(&CharlieThreadPool::live, this, i);
+      tp[i] = std::thread(&ThreadPool::live, this, i);
   }
 
 
@@ -115,32 +125,36 @@ struct CharlieThreadPool
   // ===========================================================================
   // maxCore will be changed if it exceeds the maximum number of cores on machine.
   // ===========================================================================
-  void reset(int &maxCore)
+  void reset(int &&maxCore)
   {
     maxCore = std::min<int> (
       std::thread::hardware_concurrency(), maxCore);
     if (maxCore != this->maxCore)
     {
       destroy();
-      initialize(maxCore);
+      initialize(std::move(maxCore));
     }
   }
+  
 
   // ===========================================================================
   // maxCore will be changed if it exceeds the maximum number of cores on machine.
   // ===========================================================================
-  CharlieThreadPool(int &maxCore) { initialize(maxCore); }
+  ThreadPool( int &&maxCore ) { initialize(  std::move(maxCore)  ); }
+  ThreadPool() {  maxCore = 0; }
 
 
-  ~CharlieThreadPool() { if (haveFood != nullptr) destroy(); }
+  ~ThreadPool() { if (haveFood != nullptr) destroy(); }
 
 
+  // ===========================================================================
   // If `run` or `beforeRun` or `afterRun` are lvalues, use std::move().
+  // ===========================================================================
   void parFor(std::size_t begin, std::size_t end,
-              std::function<bool(std::size_t, std::size_t)> &&run,
+              std::function <bool(std::size_t, std::size_t)> &&run,
               std::size_t grainSize,
-              std::function<bool(std::size_t)> &&beforeRun = [](std::size_t) { return false; },
-              std::function<bool(std::size_t)> &&afterRun  = [](std::size_t) { return false; })
+              std::function <bool(std::size_t)> &&beforeRun = [](std::size_t) { return false; },
+              std::function <bool(std::size_t)> &&afterRun  = [](std::size_t) { return false; })
   {
     if (maxCore <= 1)
     {
@@ -151,6 +165,11 @@ struct CharlieThreadPool
     this->beforeRun = &beforeRun;
     this->afterRun = &afterRun;
     this->dT.reset(begin, end, grainSize);
+    
+    
+    // if (this->haveFood == nullptr) Rcout << "this->haveFood == nullptr!\n";
+    
+    
     std::fill(this->haveFood, this->haveFood + this->maxCore, true); // Kick off job runs.
     this->runJobs(0); // Main thread also runs jobs.
     bool allfinished = false;
@@ -165,69 +184,10 @@ struct CharlieThreadPool
 
 
 
-// =============================================================================
-// DO NOT DELETE!!!
-// Example use:
-// =============================================================================
-// // [[Rcpp::export]]
-// int paraSummation(IntegerVector x, int maxCore = 15, int grainSize = 100)
-// {
-//   IntegerVector S(maxCore);
-//   CharlieThreadPool ctp(maxCore);
-//   ctp.parFor(0, x.size(), [&](std::size_t i, std::size_t t)->bool
-//   {
-//     S[t] += (x[i] % 31 + x[i] % 131 + x[i] % 73 + x[i] % 37 + x[i] % 41) % 7;
-//     return false; // Return true indicates early return.
-//   }, grainSize,
-//   [](std::size_t t)->bool{ return false; },
-//   [](std::size_t t)->bool{ return false; });
-//   return std::accumulate(S.begin(), S.end(), 0);
-// }
-
-
-// =============================================================================
-// # R code to test:
-// Rcpp::sourceCpp('tests/testThreadPool.cpp', verbose = T)
-//   tmp2 = sample(1000L, 3e7, replace= T) 
-//   system.time({cppRst = paraSummation(tmp2, maxCore = 100, grainSize = 100)})
-//   system.time({truth = sum((tmp2 %% 31L + tmp2 %% 131L + tmp2 %% 73L + 
-//     tmp2 %% 37L + tmp2 %% 41L) %% 7L)})
-//   cppRst - truth
-// =============================================================================
 
 
 
-
-
-
-
-
-// // [[Rcpp::export]]
-// double paraSummationFloat(NumericVector x, int maxCore = 15, int grainSize = 100)
-// {
-//   NumericVector S(maxCore);
-//   CharlieThreadPool ctp(maxCore);
-//   ctp.parFor(0, x.size(), [&](std::size_t i, std::size_t t)->bool
-//   {
-//     S[t] += (x[i] / 31 + x[i] / 131 + x[i] / 73 + x[i] / 37 + x[i] / 41) / 7;
-//     return false; // Return true indicates early return.
-//   }, grainSize,  
-//   [](std::size_t t)->bool{ return false; }, 
-//   [](std::size_t t)->bool{ return false; });
-//   return std::accumulate(S.begin(), S.end(), 0.0);
-// } 
-
-
-// =============================================================================
-// R code to test.
-// =============================================================================
-// tmp2 = runif(1e8); paraSummationFloat(tmp2, maxCore = 1, grainSize = 100) / 
-//   paraSummationFloat(tmp2, maxCore = 100, grainSize = 100) - 1
-
-
-
-
-
+}
 
 
 

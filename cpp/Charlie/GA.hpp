@@ -1,19 +1,8 @@
 # pragma once
-
-
-#include "charlieThreadPool.hpp"
-#include "miniPCG.hpp"
-
-
-#ifndef vec
-#define vec std::vector
-#endif
-
-
-#define RNG MiniPcg32
 #include <random>
 
 
+namespace Charlie {
 // =============================================================================
 // Learning rate schedule: LinearLRschedule or ExpLRschedule
 // Does not apply to every optimization problem.
@@ -59,28 +48,26 @@ struct ExpLRschedule
 
 
 template<typename ing, typename GA>
-struct cmp
+struct GAcmp
 {
   GA *x;
-  cmp() {}
-  cmp(GA *x): x(x) {}
+  GAcmp() {}
+  GAcmp(GA *x): x(x) {}
   bool operator() (ing i, ing j) { return x->getval(i) < x->getval(j); }
 };
 
 
 template<typename ing, typename num, typename GA>
 inline void ParaReproduce(
-    GA *G, RNG *rngs, ing *odr, ing *parent, CharlieThreadPool *tp)
+    GA *G, MiniPCG *rngs, ing *odr, ing *parent, Charlie::ThreadPool &tp)
 {
-  tp->parFor(0, G->popuSize() - G->survivalSize(), [&](
+  tp.parFor(0, G->popuSize() - G->survivalSize(), [&](
       std::size_t objI, std::size_t t)->bool
   {
     G->reproduceTo(parent[objI], odr[G->survivalSize() + objI], rngs[objI]);
     return false;    
   }, 1);
 }
-
-
 
 
 // ======================================================================================
@@ -104,7 +91,7 @@ inline void ParaReproduce(
 // 7.  void actionsBetweenGenerations(ing iter): chance to adjust global parameters in GA 
 //     after the iter_th generation.
 
-// 8.  vec<ing> * corder(): return a pointer to the container for storing 
+// 8.  std::vector<ing> * corder(): return a pointer to the container for storing 
 //     indices of candidates ordered by their function values. The container in the
 //     GA class does not need to be initialized.
 // ======================================================================================
@@ -118,11 +105,15 @@ inline void ParaReproduce(
 // best candidate in the i_th generation.
 // ======================================================================================
 template <typename ing, typename num, typename GA>
-vec<vec<num> > runGAobj(
-    GA &initializedG, std::string reproduceSelectionMethod,
+std::vector<std::vector<num> > runGAobj(
+    GA &initializedG, 
+    std::string &&reproduceSelectionMethod,
     ing NcandidateToSaveLearningCurve,
-    ing maxIter, ing randomSeed, 
-    CharlieThreadPool *cp, bool verbose = true)
+    ing maxIter, 
+    ing randomSeed, 
+    Charlie::ThreadPool &cp, 
+    Charlie::VecPool &vp,
+    bool verbose = true)
 {
   ing reproduceSelection = 0;
   if (reproduceSelectionMethod == "linearProb") reproduceSelection = 1;
@@ -136,18 +127,17 @@ vec<vec<num> > runGAobj(
     survivalSize, NcandidateToSaveLearningCurve);
   
   
-  vec<ing> &objfodr = *G.corder();
+  std::vector<ing> &objfodr = *G.corder();
   objfodr.resize(popuSize);
   std::iota(objfodr.begin(), objfodr.end(), 0);
   
   
-  vec<num> pvec;
+  std::vector<num> pvec;
   if (reproduceSelection != 0)
   {
     pvec.resize(survivalSize);
     if (reproduceSelection == 1)
     {
-      
       for (ing i = 0; i < survivalSize; ++i) 
         pvec[i] = survivalSize - i;
     }
@@ -162,29 +152,36 @@ vec<vec<num> > runGAobj(
   }
   
   
-  vec<ing> parent(popuSize - survivalSize);
+  std::vector<ing> parent(popuSize - survivalSize);
   for (ing i = 0, iend = parent.size(); i < iend; ++i) 
     parent[i] = i % survivalSize;
   
   
   auto U = std::uniform_real_distribution<num> (0, 1);
-  vec<RNG> rngs(parent.size());
-  for (ing i = 0, iend = rngs.size(); i < iend; ++i) 
+  auto rngs = vp.give<MiniPCG>(parent.size());
+  // std::vector<MiniPCG> rngs(parent.size());
+  for (ing i = 0, iend = rngs.size(); i < iend; ++i)
     rngs[i].seed(randomSeed + 1 + i);
   
   
-  vec<vec<num> > learningCurve(maxIter, vec<num> (NcandidateToSaveLearningCurve));
+  // std::vector<std::vector<num> > learningCurve(maxIter, std::vector<num> (
+  //     NcandidateToSaveLearningCurve));
+  auto learningCurve = vp.give<num> (maxIter, NcandidateToSaveLearningCurve);
   
   
   std::partial_sort(objfodr.begin(), objfodr.begin() + G.survivalSize(), 
-                    objfodr.end(), cmp<ing, GA>(&G));
+                    objfodr.end(), GAcmp<ing, GA>(&G));
   
   
   for (ing iter = 0; iter < maxIter; ++iter)
   { 
     if (verbose)
     {
+#ifdef Rcpp_hpp 
       Rcpp::Rcout << "Lowest object function value = " << G.getval(objfodr[0]) << "\n";
+#else
+      std::cout << "Lowest object function value = " << G.getval(objfodr[0]) << "\n";
+#endif
     }
     
     
@@ -203,7 +200,7 @@ vec<vec<num> > runGAobj(
     
     
     std::partial_sort(objfodr.begin(), objfodr.begin() + G.survivalSize(), 
-                      objfodr.end(), cmp<ing, GA>(&G));
+                      objfodr.end(), GAcmp<ing, GA>(&G));
     
     
     for (ing k = 0; k < NcandidateToSaveLearningCurve; ++k)
@@ -214,10 +211,18 @@ vec<vec<num> > runGAobj(
   }
   
   
-  std::sort(objfodr.begin(), objfodr.end(), cmp<ing, GA>(&G));
-  if (verbose) Rcpp::Rcout << "Lowest object function value = " << 
-    G.getval(objfodr[0]) << "\n";
+  std::sort(objfodr.begin(), objfodr.end(), GAcmp<ing, GA>(&G));
   
+  if (verbose) 
+  {
+#ifdef Rcpp_hpp
+    Rcpp::Rcout << "Lowest object function value = " << 
+      G.getval(objfodr[0]) << "\n";
+#else
+    std::cout << "Lowest object function value = " << 
+      G.getval(objfodr[0]) << "\n";
+#endif
+  }
   
   return learningCurve;
 }
@@ -225,7 +230,7 @@ vec<vec<num> > runGAobj(
 
 
 
-
+}
 
 
 

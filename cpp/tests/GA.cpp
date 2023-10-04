@@ -1,7 +1,10 @@
 // [[Rcpp::plugins(cpp17)]]
 #include <Rcpp.h>
 using namespace Rcpp;
-#include "../h/GA003.hpp"
+#include "../Charlie.hpp"
+
+
+#define vec std::vector
 
 
 // LRS is learning rate schedule.
@@ -49,7 +52,7 @@ struct BananaFun
   }
   
   
-  void reproduceTo(ing i, ing j, RNG &rng)
+  void reproduceTo(ing i, ing j, Charlie::MiniPCG &rng)
   {
     copyTo(i, j);
     num learningRate = learningR.generate();
@@ -82,15 +85,16 @@ struct BananaFun
 
 
 // [[Rcpp::export]]
-vec<vec<double> > testGA(Rcpp::NumericVector initxy, 
-                         double initNoise, double minNoise,
-                         int popuSize, int survivalSize, 
-                         int maxGen, int Ngen2minNoise,
-                         std::string reproduceSelection, int randomSeed,
-                         int maxCore = 7)
+std::vector<std::vector<double> > testGA(
+    Rcpp::NumericVector initxy, 
+    double initNoise, double minNoise,
+    int popuSize, int survivalSize, 
+    int maxGen, int Ngen2minNoise,
+    std::string reproduceSelection, int randomSeed,
+    int maxCore)
 {
   
-  typedef BananaFun<int, double, LinearLRschedule<int, double> > GAobj;
+  typedef BananaFun<int, double, Charlie::LinearLRschedule<int, double> > GAobj;
   GAobj ga(std::pair<double, double> (initxy[0], initxy[1]), 
            popuSize, survivalSize, initNoise, minNoise, maxGen, Ngen2minNoise);
   
@@ -106,11 +110,18 @@ vec<vec<double> > testGA(Rcpp::NumericVector initxy,
   int NcandidateToSaveLearningCurve = 10;
   
   
-  CharlieThreadPool cp(maxCore);
-  vec<vec<double> > rst = runGAobj<int, double, GAobj> (
-    ga, reproduceSelection, NcandidateToSaveLearningCurve, 
-    maxGen, randomSeed, &cp, true);
+  Charlie::ThreadPool cp(std::move(maxCore));
+  Charlie::VecPool vp;
+  auto rst = Charlie::runGAobj<int, double, GAobj> (
+    ga, std::move(reproduceSelection), NcandidateToSaveLearningCurve, 
+    maxGen, randomSeed, cp, vp, true);
   
   
   return rst;
-}
+} 
+
+
+#undef vec
+
+
+

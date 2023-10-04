@@ -1,6 +1,6 @@
 #pragma once
-// [[Rcpp::plugins(cpp17)]]
 #include <chrono>
+#include <vector>
 
 
 /*
@@ -27,6 +27,8 @@ struct tiktok
 */
 
 
+namespace Charlie {
+
 template<typename timetype>
 struct tiktok
 {
@@ -51,7 +53,7 @@ struct tiktok
   
 };
 
-
+}
 
 
 

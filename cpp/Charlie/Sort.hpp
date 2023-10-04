@@ -1,49 +1,48 @@
-#include "charlieThreadPool.hpp"
-
-
-#ifndef vec 
-#define vec std::vector
-#endif
+// #include "charlieThreadPool.hpp"
+// 
+// 
+// #ifndef vec 
+// #define vec std::vector
+// #endif
 
 
 // Use Multithreaded merge sort if the vector is big enough and a pointer to
 // an existing CharlieThreadPool is given.
 
 
+namespace Charlie {
+
+
 // Can only sort elements in a block of memory.
-class CharlieSort
+struct Sort
 {
-  vec<uint64_t> offset;
-  vec<uint64_t> v;
-  
-  
-public:
+
   template <typename num, typename Compare>  
-  void operator() (num *x, num *xend, Compare f, 
-                CharlieThreadPool *cp = nullptr)
+  void operator() (
+      num *x, num *xend, Compare &&f, 
+      ThreadPool *cp = nullptr,
+      VecPool *vp = nullptr)
   {
-    if (cp == nullptr or xend - x < 3000 or cp->maxCore <= 1) 
+    if (cp == nullptr or xend - x < 3000 or cp->maxCore <= 1)
     { 
       std::sort(x, xend, f); return; 
     }
     
     
-    uint64_t size = xend - x;
-    uint64_t vsize = (size * sizeof(num) + sizeof(uint64_t) - 1) / 
-      sizeof(uint64_t);
-    v.resize(vsize);
+    uint64_t Nblock = std::round(std::exp2(uint64_t(
+      std::round(std::log2(cp->maxCore * 4.0) / 2)) * 2));
     
     
-    uint64_t Nblock = std::round(std::exp2(uint64_t(std::round(
-      std::log2(cp->maxCore * 4.0) / 2)) * 2));
+    std::vector<uint64_t> offset;
+    if (vp == nullptr) offset.resize(Nblock + 1);
+    else vp->give<uint64_t>(Nblock + 1).swap(offset);
     
     
-    offset.resize(Nblock + 1);
     offset[0] = 0;
-    double approxBlockSize = (vsize + 0.0) / Nblock;
-    for (uint64_t i = 1, iend = offset.size() - 1; i < iend; ++i)
+    double approxBlockSize = (xend - x + 0.0) / Nblock;
+    for (int64_t i = 1, iend = offset.size() - 1; i < iend; ++i)
       offset[i] = uint64_t(std::round(approxBlockSize * i));
-    offset.back() = vsize;
+    offset.back() = xend - x;
     cp->parFor(0, Nblock, [&](std::size_t i, std::size_t t)->bool
     {
       std::sort(x + offset[i], x + offset[i + 1], f);
@@ -51,7 +50,12 @@ public:
     }, 1);
     
     
-    num *y = (num*)(&v[0]);
+    std::vector<num> v;
+    if (vp != nullptr) vp->give<num>(xend - x).swap(v);
+    else v.resize(xend - x);
+    
+    
+    num *y = v.data();
     for (uint64_t delta = 1; delta < Nblock; delta *= 2)
     {
       cp->parFor(0, Nblock / (delta * 2), [&](std::size_t i, std::size_t t)->bool
@@ -66,12 +70,16 @@ public:
       }, 1);
       std::swap(x, y);
     }
+    
+    
+    if (vp != nullptr) { vp->recall(v); vp->recall(offset); }
   }
   
   
   template <typename num>
   void operator() (num *x, num *xend,
-                CharlieThreadPool *cp = nullptr)
+                Charlie::ThreadPool *cp = nullptr,
+                Charlie::VecPool *vp = nullptr)
   {
     auto cmp = [](const num &u, const num &v)->bool { return u < v; };
     (*this)(x, xend, cmp, cp);
@@ -80,55 +88,24 @@ public:
   
   template <typename Iter, typename Compare>  
   void operator() (Iter x, Iter xend, Compare f, 
-                CharlieThreadPool *cp = nullptr)
+                Charlie::ThreadPool *cp = nullptr,
+                Charlie::VecPool *vp = nullptr)
   {
     (*this)(&*x, &*xend, f, cp);
   }
   
   
   template <typename Iter>
-  void operator() (Iter x, Iter xend, CharlieThreadPool *cp = nullptr)
+  void operator() (Iter x, Iter xend, 
+                Charlie::ThreadPool *cp = nullptr,
+                Charlie::VecPool *vp = nullptr)
   {
     (*this)(&*x, &*xend, cp);
   }
 };
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+}
 
 
 

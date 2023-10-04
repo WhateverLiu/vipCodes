@@ -1,24 +1,16 @@
 #include <Rcpp.h>
 using namespace Rcpp;
-
-
-
-#define XXH_STATIC_LINKING_ONLY   /* access advanced declarations */
-#define XXH_IMPLEMENTATION   /* access definitions */
-#include "xxhash.h"
-
-
-#define vec std::vector
-// Return the unique vectors via hashing.
+#include "../Charlie.hpp"
 
 
 // [[Rcpp::export]]
 List uniqueVec(List X) 
 {
   
-  auto hashFun = [](const vec<int> &v)->std::size_t
+  
+  auto hashFun = [](const std::vector<int> &v)->std::size_t
   {
-    return XXH64(&v[0], sizeof(int) * v.size(), 42);
+    return Charlie::hash(&v[0], sizeof(int) * v.size(), 42);
   };
   
   
@@ -26,7 +18,7 @@ List uniqueVec(List X)
   // This is UNNECESSARY for std::vector! Because the vector class does have ==
   // overloaded!
   // ===========================================================================
-  auto equalFun = [](const vec<int> &x, const vec<int> &y)->bool
+  auto equalFun = [](const std::vector<int> &x, const std::vector<int> &y)->bool
   {
     if (x.size() != y.size()) return false;
     for (int i = 0, iend = x.size(); i < iend; ++i)
@@ -41,11 +33,12 @@ List uniqueVec(List X)
   
   
   // decltype() auto deduces the type of object!
-  std::unordered_set<vec<int>, decltype(hashFun), decltype(equalFun)> S(
+  std::unordered_set<std::vector<int>, decltype(hashFun), decltype(equalFun)> S(
       13, hashFun, equalFun);
   // Due to custom hashFun and equalFun, the initial bucket count MUST be 
-  // specified. In the case where bucket count is not specified, the default
-  // bucket count is 11! See example on https://cplusplus.com/reference/unordered_set/unordered_set/load_factor/
+  //   specified. In the case where bucket count is not specified, the default
+  //   bucket count is 11! 
+  // See example on https://cplusplus.com/reference/unordered_set/unordered_set/load_factor/
   
   
   Rcout << "size = " << S.size() << ", ";
@@ -55,7 +48,7 @@ List uniqueVec(List X)
   for (int i = 0, iend = X.size(); i < iend; ++i)
   {
     IntegerVector v = X[i];
-    S.emplace(vec<int> (v.begin(), v.end()));
+    S.emplace(std::vector<int> (v.begin(), v.end()));
   }
   
   
