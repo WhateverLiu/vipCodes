@@ -10,6 +10,7 @@ private:
   std::vector<std::vector<char>> X;
   
   
+  /*
   // ===========================================================================
   // Swap a std::vector<T> and a std::vector<char>.
   // ===========================================================================
@@ -25,6 +26,19 @@ private:
     mmcp(&x,   mem,  sizeof(x));
     return rst;
   }
+  */
+  
+  
+  template<typename T> // rst is of size 0.
+  void T2char(std::vector<T> &x, std::vector<char> &rst)
+  { 
+    static_assert(sizeof(x) == sizeof(std::vector<char>));
+    x.resize(0); // Call destructors on all elements but maintain capacity.
+    char mem[sizeof(x)]; // Start swapping.
+    mmcp(mem,  &rst, sizeof(x));
+    mmcp(&rst, &x,   sizeof(x));
+    mmcp(&x,   mem,  sizeof(x));
+  } 
   
   
   // ===========================================================================
@@ -83,7 +97,8 @@ private:
     //   T2char(x).size() == 0. emplace_back ignores zero-size vectors. Tricky!
     // =========================================================================
     X.emplace_back(std::vector<char>(0));
-    T2char(x).swap(X.back());
+    // T2char(x).swap(X.back());
+    T2char(x, X.back());
   }
   
 
@@ -160,8 +175,8 @@ void VecPool::test0()
   // ===========================================================================
   // Test if std::vector is implemented in the way that can be exploited.
   // ===========================================================================
-  constexpr const unsigned fullSize = 31;
-  constexpr const unsigned subSize  = 13;
+  unsigned fullSize = std::rand() % 31 + 17;
+  unsigned subSize = fullSize - std::rand() % 13;
   
   
   typedef std::tuple<char, char, char> tupe; // Arbitrarily selected type.
