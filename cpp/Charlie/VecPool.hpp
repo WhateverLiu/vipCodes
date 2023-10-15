@@ -10,25 +10,9 @@ private:
   std::vector<std::vector<char>> X;
   
   
-  /*
   // ===========================================================================
   // Swap a std::vector<T> and a std::vector<char>.
   // ===========================================================================
-  template<typename T>
-  std::vector<char> T2char(std::vector<T> &x)
-  { 
-    static_assert(sizeof(x) == sizeof(std::vector<char>));
-    x.resize(0); // Call destructors on all elements but maintain capacity.
-    std::vector<char> rst(0);
-    char mem[sizeof(x)]; // Start swapping.
-    mmcp(mem,  &rst, sizeof(x));
-    mmcp(&rst, &x,   sizeof(x));
-    mmcp(&x,   mem,  sizeof(x));
-    return rst;
-  }
-  */
-  
-  
   template<typename T> // rst is of size 0.
   void T2char(std::vector<T> &x, std::vector<char> &rst)
   { 
@@ -71,12 +55,12 @@ private:
   {
     if (X.size() == 0) 
     {
-      std::vector<T> rst(size + 1); // Always prefer a little bit larger capacity.
+      std::vector<T> rst(size + 1); // Always prefer slightly larger capacity.
       rst.pop_back();
       return rst;
     }
     auto rst = char2T<T> (X.back());
-    rst.resize(size + 1); // Always prefer a little bit larger capacity.
+    rst.resize(size + 1); // Always prefer slightly larger capacity.
     rst.pop_back();
     X.pop_back();
     return rst;
@@ -91,13 +75,13 @@ private:
   template<typename T>
   void recallCore(std::vector<T> &x) // invalidates everything related to x.
   { 
+    if (x.capacity() == 0) return;
     x.resize(0); // Does not deallocate the container.
     // =========================================================================
     // Do not directly do X.emplace_back(rst). This will have no effect since
     //   T2char(x).size() == 0. emplace_back ignores zero-size vectors. Tricky!
     // =========================================================================
     X.emplace_back(std::vector<char>(0));
-    // T2char(x).swap(X.back());
     T2char(x, X.back());
   }
   
