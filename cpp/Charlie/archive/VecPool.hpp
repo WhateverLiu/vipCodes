@@ -23,9 +23,8 @@ private:
   std::vector<std::vector<char>> X;
   
   
-  // Will zero both vectors' sizes. Capacities do not change.
   template <typename S, typename T>
-  void darkSwap(std::vector<S> &s, std::vector<T> &t)
+  void swap(std::vector<S> &s, std::vector<T> &t)
   {
     static_assert(sizeof(s) == sizeof(t));
     static_assert(sizeof(char*) == sizeof(std::size_t));
@@ -35,16 +34,16 @@ private:
     if constexpr ( std::is_same<S, T>::value ) { s.swap(t); }
     else
     {
-      if constexpr ( std::is_same<T, char>::value ) darkSwap(t, s);
+      if constexpr ( std::is_same<T, char>::value ) swap(t, s);
       else
       {
         if constexpr (std::is_same<S, char>::value) // s is char vector, but t is not.
         {
-          std::size_t memT[3];
-          mmcp(memT, &s, sizeof(s));
-          memT[2] -= (memT[2] - memT[0]) % sizeof(T);
-          mmcp(&s,  &t,  sizeof(s));
-          mmcp(&t, memT, sizeof(t));
+          std::size_t mem[3];
+          mmcp(mem, &s, sizeof(s));
+          mem[2] -= (mem[2] - mem[0]) % sizeof(T);
+          mmcp(&s,  &t, sizeof(s));
+          mmcp(&t, mem, sizeof(s));
         }
         else
         {
@@ -57,10 +56,10 @@ private:
         }
       }
     }
+    
   }
   
   
-  /*
   // ===========================================================================
   // Swap a std::vector<T> and a std::vector<char>.
   // ===========================================================================
@@ -96,7 +95,6 @@ private:
     mmcp(&rst, mem, sizeof(x));
     return rst;
   }
-  */
   
   
   // ===========================================================================
@@ -111,9 +109,7 @@ private:
       rst.pop_back();
       return rst;
     }
-    std::vector<T> rst;
-    darkSwap(rst, X.back());
-    // auto rst = char2T<T> (X.back());
+    auto rst = char2T<T> (X.back());
     rst.resize(size + 1); // Always prefer slightly larger capacity.
     rst.pop_back();
     X.pop_back();
@@ -137,8 +133,7 @@ private:
     //   T2char(x).size() == 0. emplace_back ignores zero-size vectors. Tricky!
     // =========================================================================
     X.emplace_back(std::vector<char>());
-    darkSwap(x, X.back());
-    // T2char(x, X.back());
+    T2char(x, X.back());
   }
   
 
@@ -194,26 +189,11 @@ public:
   }
   
   
-  // Exchange the input vector for another vector.
-  template <typename Out, typename In, typename... Args>
-  auto swap ( std::vector<In> &x, Args... restSizes )
+  template <typename In, typename Out, typename... Args>
+  auto exchange(std::vector<In> &x, std::size_t size, Args... restSizes)
   {
-    // If the input vector is not nested and output vector is also not nested,
-    //   take a shortcut.
-    static_assert(sizeof...(restSizes) != 0);
-    if constexpr ( !isVector<In>()() and !isVector<Out>()() and 
-                     sizeof...(restSizes) == 1 )
-    {
-      std::vector<Out> rst;
-      darkSwap(rst, x);
-      rst.resize(restSizes...);
-      return rst;
-    }
-    else
-    {
-      recall(x);
-      return lend(restSizes...);
-    }
+    recall(x);
+    return lend(size, ...restSizes);
   }
   
   
@@ -311,20 +291,6 @@ void VecPool::test1()
   if (std::size_t(X.back().data()) + sizeof(double) != std::size_t(dptr) ) 
     throw std::runtime_error(
         "VecPool initiailization: Last in pool is a different container -- 2.\n");
-  
-  
-  // ===========================================================================
-  // Test swap().
-  // ===========================================================================
-  auto e = lend<double> (rand() % 11 + 9);
-  for (auto &x: e) x = rand() * 1e-8;
-  double S = std::accumulate(e.begin(), e.end(), 0.0);
-  auto edata = e.data();
-  auto f = swap<short> ( e, e.size() / 3 * 2 );
-  double Sf = std::accumulate(f.begin(), f.end(), 0.0);
-  if ((char*)f.data() != (char*)edata) throw std::runtime_error(
-    ".swap() is not working correctly. Some garbage value = " + 
-      std::to_string(Sf + S) + ".\n");
 }
 
 

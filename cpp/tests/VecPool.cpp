@@ -1,4 +1,4 @@
-// [[Rcpp::plugins(cpp17)]]
+// [[Rcpp::plugins(cpp20)]]
 #include <Rcpp.h>
 using namespace Rcpp;
 #include "../Charlie.hpp"
@@ -8,12 +8,12 @@ using namespace Rcpp;
 void test1(int asize = 3) 
 {
   Charlie::VecPool vp;
-  auto a = vp.give<float>(asize);
+  auto a = vp.lend<float>(asize);
   a.resize(asize);
   void *aptr = a.data();
   
   
-  auto b = vp.give<std::tuple<short, short, short> >(asize + 2);
+  auto b = vp.lend<std::tuple<short, short, short> >(asize + 2);
   void *bptr = b.data();
   
   
@@ -33,12 +33,12 @@ void test1(int asize = 3)
   int lastContainerByteCapa = vp.getPool().back().capacity();
   Rcout << "lastContainerByteCapa = " << lastContainerByteCapa << "\n";
   int pushTimes = lastContainerByteCapa / sizeof(tupe) + 5;
-  auto c = vp.give<tupe>(0);
+  auto c = vp.lend<tupe>(0);
   Rcout << "c.size() = " << c.size() << "\n";
   Rcout << "c.capacity() = " << c.capacity() << "\n";
   
   
-  // This will give segmentation fault if c's byte capacity is not a 
+  // This will lend segmentation fault if c's byte capacity is not a 
   //   multiple of sizeof(tupe).
   for (int i = 0; i < pushTimes; ++i)
     c.emplace_back(tupe());
@@ -54,7 +54,6 @@ void test1(int asize = 3)
   if ( (void*)(vp.getPool().back().data()) != cptr )
     throw std::runtime_error("Last in pool is a different container -- 2.");
 } 
-
 
 
 
@@ -78,6 +77,7 @@ struct TmpFun
 
 
 
+
 // [[Rcpp::export]]
 void test2(int seed)
 {
@@ -87,7 +87,7 @@ void test2(int seed)
   auto U = std::uniform_int_distribution<int> (1, 5); // At most 5^10 elements could be allocated.
   int a[10];
   for (int i = 0; i < 10; ++i) a[i] = U(rng);
-  auto x = vp.give<float> ( // x is a 10-d vector.
+  auto x = vp.lend<float> ( // x is a 10-d vector.
     a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]);
   std::vector<std::size_t> addresses;
   auto f = TmpFun(addresses); f(x);

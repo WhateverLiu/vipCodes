@@ -7,7 +7,7 @@ namespace Charlie {
 
 
 // =============================================================================
-// Given y[size] and SORTED x[size], find the longest monotonic 
+// lendn y[size] and SORTED x[size], find the longest monotonic 
 //   subsequence of y[] and the associated subsequence of x. Linearly 
 //   interpolate a function y = f(x).
 // The class should overload operator() for query.
@@ -21,23 +21,24 @@ template <typename ing, typename numX, typename numY>
 struct MonoLinearInterpo
 {
   LongestMonoSubseq<ing, numY> lms;
-  std::vector<numX> xsubseq;
-  std::vector<numY> ysubseq;
+  vec<numX> xsubseq;
+  vec<numY> ysubseq;
+  VecPool *vp;
   
   
   // Compute the longest subsequences of both x and y. Get ready for query().
   template<int monoType>
   void reset(numX *x, numX *xend, numY *y, VecPool &vp)
   {
-    auto indx = vp.give<ing>(xend - x);
+    auto indx = vp.lend<ing>(xend - x);
     auto indxEnd = lms.template operator()<monoType> (
       y, y + (xend - x), indx.data(), vp);
     indx.resize(indxEnd - indx.data());
     
     
-    if (xsubseq.capacity() == 0) vp.give<numX>(indx.size()).swap(xsubseq);
+    if (xsubseq.capacity() == 0) vp.lend<numX>(indx.size()).swap(xsubseq);
     else xsubseq.resize(indx.size());
-    if (ysubseq.capacity() == 0) vp.give<numY>(indx.size()).swap(ysubseq);
+    if (ysubseq.capacity() == 0) vp.lend<numY>(indx.size()).swap(ysubseq);
     else ysubseq.resize(indx.size());
     
     
@@ -48,10 +49,16 @@ struct MonoLinearInterpo
     }
     
     
-    // vp.recall(ysubseq);
-    // vp.recall(xsubseq);
     vp.recall(indx);
+    this->vp = &vp;
   } 
+  
+  
+  ~MonoLinearInterpo()
+  {
+    vp->recall(ysubseq);
+    vp->recall(xsubseq);
+  }
   
   
   numY operator()(numX &&x)
@@ -77,10 +84,7 @@ struct MonoLinearInterpo
 };
 
 
-
 #undef vec
-
-
 }
 
 

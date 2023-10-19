@@ -12,7 +12,7 @@ namespace Charlie {
 
 
 template<typename T>
-struct isVector { constexpr bool operator()() { return false;} };
+struct isVector { constexpr bool operator()() { return false; } };
 
 
 template<typename T, typename A> // Partial template specialization.

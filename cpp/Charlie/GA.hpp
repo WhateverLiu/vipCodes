@@ -158,7 +158,7 @@ std::vector<std::vector<num> > runGAobj(
   
   
   auto U = std::uniform_real_distribution<num> (0, 1);
-  auto rngs = vp.give<MiniPCG>(parent.size());
+  auto rngs = vp.lend<MiniPCG>(parent.size());
   // std::vector<MiniPCG> rngs(parent.size());
   for (ing i = 0, iend = rngs.size(); i < iend; ++i)
     rngs[i].seed(randomSeed + 1 + i);
@@ -166,7 +166,7 @@ std::vector<std::vector<num> > runGAobj(
   
   // std::vector<std::vector<num> > learningCurve(maxIter, std::vector<num> (
   //     NcandidateToSaveLearningCurve));
-  auto learningCurve = vp.give<num> (maxIter, NcandidateToSaveLearningCurve);
+  auto learningCurve = vp.lend<num> (maxIter, NcandidateToSaveLearningCurve);
   
   
   std::partial_sort(objfodr.begin(), objfodr.begin() + G.survivalSize(), 

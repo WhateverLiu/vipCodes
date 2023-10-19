@@ -38,22 +38,22 @@ struct dynamicTasking
 };
 
 
-
-// =============================================================================
-// Things that have been considered:
-//   1. If we make ThreadPool a template of auto typenames for templatize 
-//    run, beforeRun, afterRun, then constructor will be a problem because it
-//    cannot deduce the template parameters.
-//   2. Capturing lambda cannot be converted to function pointer.
-// =============================================================================
+// RunType == std::function<bool(std::size_t, std::size_t)>
+// BeforeRunType == std::function<bool(std::size_t)>
+// AfterRunType == std::function<bool(std::size_t)>
+template <typename RunType = auto, typename BeforeRunType = auto, 
+          typename AfterRunType = auto>
 struct ThreadPool
 {
   int maxCore;
   volatile bool *haveFood; // haveFood[maxCore] will be appEnd indicator.
   std::thread *tp;
-  std::function<bool(std::size_t, std::size_t)> *run;
-  std::function<bool(std::size_t)> *beforeRun;
-  std::function<bool(std::size_t)> *afterRun;
+  // std::function<bool(std::size_t, std::size_t)> *run;
+  RunType *run;
+  // std::function<bool(std::size_t)> *beforeRun;
+  BeforeRunType *beforeRun;
+  // std::function<bool(std::size_t)> *afterRun;
+  AfterRunType *afterRun;
   dynamicTasking dT; // Will be set by ParaFor object.
 
 
@@ -161,10 +161,14 @@ struct ThreadPool
   // If `run` or `beforeRun` or `afterRun` are lvalues, use std::move().
   // ===========================================================================
   void parFor(std::size_t begin, std::size_t end,
-              std::function <bool(std::size_t, std::size_t)> &&run,
+              // std::function <bool(std::size_t, std::size_t)> &&run,
+              RunType &&run,
               std::size_t grainSize,
-              std::function <bool(std::size_t)> &&beforeRun = [](std::size_t) { return false; },
-              std::function <bool(std::size_t)> &&afterRun  = [](std::size_t) { return false; })
+              // std::function <bool(std::size_t)> &&beforeRun = [](std::size_t) { return false; },
+              BeforeRunType &&beforeRun,
+              // std::function <bool(std::size_t)> &&afterRun  = [](std::size_t) { return false; }
+              AfterRunType &&afterRun
+              )
   {
     if (maxCore <= 1)
     {
@@ -189,6 +193,16 @@ struct ThreadPool
       for (int i = 1; i < this->maxCore; ++i) 
         allfinished &= !this->haveFood[i];
     }
+  }
+  
+  
+  void parFor(std::size_t begin, std::size_t end,
+              RunType &&run, std::size_t grainSize = 1)
+  {
+    parFor(begin, end, run, grainSize, 
+           [](std::size_t) { return false; },
+           [](std::size_t) { return false; }
+    )
   }
 };
 

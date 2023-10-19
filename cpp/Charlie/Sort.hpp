@@ -7,7 +7,7 @@
 
 
 // Use Multithreaded merge sort if the vector is big enough and a pointer to
-// an existing CharlieThreadPool is given.
+// an existing CharlieThreadPool is lendn.
 
 
 namespace Charlie {
@@ -20,7 +20,7 @@ struct Sort
   template <typename num, typename Compare>  
   void operator() (
       num *x, num *xend, Compare &&f, 
-      ThreadPool *cp = nullptr,
+      ThreadPool *cp = nullptr, // Using pointer not reference to imply if multithreading is on.
       VecPool *vp = nullptr)
   {
     if (cp == nullptr or xend - x < 3000 or cp->maxCore <= 1)
@@ -35,7 +35,7 @@ struct Sort
     
     std::vector<uint64_t> offset;
     if (vp == nullptr) offset.resize(Nblock + 1);
-    else vp->give<uint64_t>(Nblock + 1).swap(offset);
+    else vp->lend<uint64_t>(Nblock + 1).swap(offset);
     
     
     offset[0] = 0;
@@ -51,7 +51,7 @@ struct Sort
     
     
     std::vector<num> v;
-    if (vp != nullptr) vp->give<num>(xend - x).swap(v);
+    if (vp != nullptr) vp->lend<num>(xend - x).swap(v);
     else v.resize(xend - x);
     
     

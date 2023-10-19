@@ -19,8 +19,8 @@ struct LongestMonoSubseq
   ing * run(num*x, num *xend, ing *rst, Compare &&cmp, VecPool &vp)
   {
     auto xsize = xend - x;
-    auto C = vp.give<ing>(xsize);
-    auto subseq = vp.give<num>(xsize);
+    auto C = vp.lend<ing>(xsize);
+    auto subseq = vp.lend<num>(xsize);
     C[0] = 1;
     
     

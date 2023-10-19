@@ -47,7 +47,6 @@ struct DarkSwapVec
     if constexpr ( std::is_same<S,T>::value ) 
     {
       x.swap(y);
-      return;
     }
     else
     {

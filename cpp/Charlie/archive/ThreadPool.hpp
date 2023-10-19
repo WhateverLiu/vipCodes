@@ -38,14 +38,6 @@ struct dynamicTasking
 };
 
 
-
-// =============================================================================
-// Things that have been considered:
-//   1. If we make ThreadPool a template of auto typenames for templatize 
-//    run, beforeRun, afterRun, then constructor will be a problem because it
-//    cannot deduce the template parameters.
-//   2. Capturing lambda cannot be converted to function pointer.
-// =============================================================================
 struct ThreadPool
 {
   int maxCore;

@@ -1,7 +1,7 @@
-// [[Rcpp::plugins(cpp17)]]
+// [[Rcpp::plugins(cpp20)]]
 #include <Rcpp.h>
 using namespace Rcpp;
-#include "../Charlie.hpp"
+#include "../Charlie/ThreadPool.hpp"
 
 
 // [[Rcpp::export]]
