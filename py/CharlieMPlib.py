@@ -234,10 +234,21 @@ def CharlieParaOnCluster (
   scriptDir = tmpDir + "/script"
   os.makedirs(scriptDir, exist_ok = True)
   
+  
+  # Find all modules whose names start with 'CharliePycppModule_', and add
+  # its directory.
+  modDirs = []
+  for x in globals().values():
+    if inspect.ismodule(x) and x.__name__[:19] == 'CharliePycppModule_':
+      p = os.path.dirname(x.__file__)
+      modDirs.append("sys.path.append('" + p + "')")
+  modDirs = '\n'.join(modDirs) + '\n\n'
+  
       
   for i in range(len(bounds) - 1):
     codeStr = \
     "import sys, pickle, cloudpickle\n\n" + \
+    modDirs + \
     "sys.stderr = open('" + tmpDir + "/log/t-" + str(i) + "-.txt', 'a')\n\n" + \
     "sys.stdout = open('" + tmpDir + "/log/t-" + str(i) + "-.txt', 'a')\n\n" + \
     "with open('"+ tmpDir + "/input/t-" + str(i) + "', 'rb') as o: dat = pickle.load(o)\n\n" + \
