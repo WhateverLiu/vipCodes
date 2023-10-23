@@ -21,6 +21,8 @@ class paraLoadResultUponCompletion:
     return rst
     
 
+
+
 ################################################################################
 # Naive multiprocessing library. It partitions the data and saves them on the
 # disk, creates a number of python scripts and invoke shells to execute them.
@@ -89,12 +91,21 @@ def CharliePara (
   scriptDir = tmpDir + "/script"
   os.makedirs(scriptDir, exist_ok = True)
       
+      
+  # Find all modules whose names start with 'CharliePycppModule_', and add
+  # its directory.
+  modDirs = []
+  for x in globals().values():
+    if inspect.ismodule(x) and x.__name__[:19] == 'CharliePycppModule_':
+      p = os.path.dirname(x.__file__)
+      modDirs.append("sys.path.append('" + p + "')")
+  modDirs = '\n'.join(modDirs) + '\n\n'
   
-  # "sys.stderr = open('" + tmpDir + "/log/t-" + str(i) + "-.txt', 'a')\n" + \
-  # "sys.stdout = open('" + tmpDir + "/log/t-" + str(i) + "-.txt', 'a')\n" + \
+  
   for i in range(startInd, len(bounds) - 1):
     codeStr = \
     "import sys, pickle, cloudpickle\n\n" + \
+    modDirs + \
     "sys.stderr = open('" + tmpDir + "/log/t-" + str(i) + "-.txt', 'a')\n\n" + \
     "sys.stdout = open('" + tmpDir + "/log/t-" + str(i) + "-.txt', 'a')\n\n" + \
     "with open('"+ tmpDir + "/input/t-" + str(i) + "', 'rb') as o: dat = pickle.load(o)\n\n" + \
@@ -145,15 +156,13 @@ def CharliePara (
             str(i) + "-.pickle").replace("\\", "/") for i in range(
               startInd, len(bounds) - 1)]
   return paraLoadResultUponCompletion(fpaths)
-  
-  
+
+
 
 
 # Example: given an N x P matrix `X` and list `Y` of P x M matrices, multiply `X` 
 # and each element in `Y` and sum up the elements.
 if False:
-  
-  
   import numpy as np
   Y = [np.random.uniform(size = (9, 5)) for _ in range(10000)]
   X = np.random.uniform(size = (100, 9))

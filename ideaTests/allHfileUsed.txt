@@ -1,0 +1,2 @@
+sanitizerTest.o: sanitizerTest.cpp tempFiles/tmp.hpp \
+ tempFiles/tmp/tmp.hpp

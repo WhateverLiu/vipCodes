@@ -33,9 +33,13 @@ py::list meanVar ( py::list X ) // There's a bug inside for testing sanitizers.
     int size = valvec.shape[0];
     auto val = (double*)(valvec.ptr);
     auto P   = (double*)(Pvec.ptr);
+    
+    
+    // =========================================================================
     // Showcase the intuitiveness of pybind11/boost.python.
-    auto tmp = py::make_tuple(2); 
-    py::print(tmp);
+    // =========================================================================
+    // auto tmp = py::make_tuple(2); 
+    // py::print(tmp);
     
     
     py::array_t<double> mvr(2); // Define shape as (2,)
@@ -46,7 +50,7 @@ py::list meanVar ( py::list X ) // There's a bug inside for testing sanitizers.
     if (k == 0) firstAddress = uint64_t(mvrPtr);
     rst.append(mvr);
   }
-  rst.append(firstAddress);
+  rst.append(firstAddress); 
   return rst;
 }
 

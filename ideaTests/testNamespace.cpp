@@ -4,23 +4,23 @@ using namespace Rcpp;
 #include <thread>
 
 
-struct Chthread: public std::thread
-{
-  std::size_t tid;
-  Chthread(std::size_t tid) noexcept: tid(tid) {}
-};
-
-
-namespace Temp
-{
-std::vector<char> x;
-}
-
-
-double f(int x)
-{
-  Chthread::
-}
+// struct Chthread: public std::thread
+// {
+//   std::size_t tid;
+//   Chthread(std::size_t tid) noexcept: tid(tid) {}
+// };
+// 
+// 
+// namespace Temp
+// {
+// std::vector<char> x;
+// }
+// 
+// 
+// double f(int x)
+// {
+//   Chthread::
+// }
 
 
 // struct A

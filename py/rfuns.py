@@ -37,18 +37,32 @@ LETTERS = ('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
 # ==============================================================================
 # Import python script like it is a module.
 # ==============================================================================
-def impt(modulePath, objsToImportInGlobals = None):
+def importMod(modulePath):
   '''
-  modulePath should not have .py as the extension.
+  Import module/Python script using its full/relative path. File extension
+  can be included.
   '''
-  md = importlib.import_module(modulePath)
-  if objsToImportInGlobals is None or len(objsToImportInGlobals) == 0:
-    return md
-  if type(objsToImportInGlobals) is str:
-    globals()[objsToImportInGlobals] = getattr(md, objsToImportInGlobals)
-  else:
-    for x in objsToImportInGlobals: globals()[x] = getattr(md, x)
-    
+  bname = os.path.splitext(os.path.basename(modulePath))[0]
+  curDir = os.getcwd()
+  d = os.path.dirname(modulePath)
+  os.chdir(d)
+  md = importlib.import_module(bname)
+  os.chdir(curDir)
+  return md
+
+
+# def impt(modulePath, objsToImportInGlobals = None):
+#   '''
+#   modulePath should not have .py as the extension.
+#   '''
+#   md = importlib.import_module(modulePath)
+#   if objsToImportInGlobals is None or len(objsToImportInGlobals) == 0:
+#     return md
+#   if type(objsToImportInGlobals) is str:
+#     globals()[objsToImportInGlobals] = getattr(md, objsToImportInGlobals)
+#   else:
+#     for x in objsToImportInGlobals: globals()[x] = getattr(md, x)
+
 
 def valrange(x):
   return np.array([np.min(x), np.max(x)])
@@ -395,6 +409,7 @@ if False:
 
 
 
+# lis is a string or a list of strings of variable names.
 def rm(lis):
   '''
   Remove variables named in the list from the global environment.
@@ -403,7 +418,10 @@ def rm(lis):
   for x in lis: del gl[x]
   '''
   gl = globals()
-  for x in lis: del gl[x]
+  if type(lis) == 'list':
+    for x in lis: del gl[x]
+  else:
+    del gl[lis]
 
 
 def rmAll(removeFunctions = False, removeModules = False):
@@ -416,7 +434,7 @@ def rmAll(removeFunctions = False, removeModules = False):
     del gl[x]
   '''
   gl = globals()
-  for x in tuple(gl.keys()):
+  for x in list(gl.keys()):
     if inspect.isbuiltin(gl[x]): continue
     if (not removeModules) and inspect.ismodule(gl[x]): continue
     if (not removeFunctions) and inspect.isfunction(gl[x]): continue
@@ -436,6 +454,13 @@ def getwd(backslash2forward = True):
   '''
   if not backslash2forward: return os.getcwd()
   return re.sub('\\\\', '/', os.getcwd())
+
+
+def setwd(path): os.chdir(path)
+
+
+def args(fun):
+  return inspect.signature(fun)
 
 
 def basename(path):
@@ -895,5 +920,17 @@ if False:
 #   import re
 
 
+def system(cmd):
+  return subprocess.check_output(cmd, shell = True).decode('utf-8')
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
 

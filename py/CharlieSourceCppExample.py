@@ -1,5 +1,8 @@
 
 
+cd /finance_develop/Charlie/vipCodes/py
+
+
 # ==============================================================================  
 # In debugging mode, start Python with sanitizers in a terminal. 
 # Unavailable on Windows.
@@ -15,14 +18,18 @@ python
 # ==============================================================================
 
 
-exec(open('py/sourceCppCharlie.py').read())
+import os
+os.chdir('/finance_develop/Charlie/vipCodes/py')
+# os.chdir('C:/Users/i56087/Desktop/py/sourceCppCharlie')
+exec(open('CharlieSourceCpp.py').read())
 
 
-tmp = sourceCppCharlie(
-  'cpp/listOfNumpyArrays.cpp', 
-  # compilerPath = 'C:/rtools42/x86_64-w64-mingw32.static.posix/bin/g++.exe',
+tmp = CharlieSourceCpp(
+  'CharlieSourceCppTests/listOfNumpyArrays.cpp',
+  cacheDir = "tempFiles/CharliePycpp",
+  # compilerPath = 'C:/rtools43/x86_64-w64-mingw32.static.posix/bin/g++.exe',
   sanitize = False, 
-  exportModuleOnly = False, rebuild = True)
+  exportModuleOnly = False, rebuild = False)
 
 
 import numpy as np
@@ -33,8 +40,9 @@ for i in range(3):
   p = p / np.sum(p)
   lis.append([val, p])
 
-
 rst = meanVar(lis); rst
+
+
 
 
 mvr = []

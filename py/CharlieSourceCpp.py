@@ -8,7 +8,60 @@ import time
 import importlib
 import pathlib
 import subprocess
+import inspect
+import sys
 from sysconfig import get_paths
+
+
+def getAllHfilesAndMtime(cplr, cppPath, beingSanitized):
+  cmd = cplr + ' -MM ' + cppPath
+  if beingSanitized: cmd = "unset LD_PRELOAD; " + cmd
+  fs = subprocess.check_output(cmd, shell = True).decode('utf-8')
+  if platform.system() == "Linux": 
+    fs = fs.replace('\n', '').replace('\\', '').split(' ')[1:]
+  else: 
+    fs = fs.replace('\\', '/').replace('\r', '\n').replace('\n', '').split(' ')[1:]
+  fs = [os.path.abspath(x).replace("\\", "/") for x in fs if x != '' and x != '/']
+  fmtime = [os.path.getmtime(f) for f in fs]
+  return dict(zip(fs, fmtime))
+
+
+
+
+# Load in a dll module built via pybind11
+def unloadModule(moduleFullName):
+  md = os.path.basename(os.path.splitext(moduleFullName)[0]) # Module name without ext.
+  dr = os.path.dirname(moduleFullName).replace("\\","/")
+  try: sys.modules.pop(md)
+  except: pass
+  for x in list(globals().keys()):
+    try:
+      if globals()[x].__file__ == moduleFullName:
+        funNames = [x[0] for x in inspect.getmembers(globals()[x], inspect.isbuiltin)]
+        for f in funNames: 
+          if f in globals(): del globals()[f]
+        del globals()[x]
+    except: pass
+
+
+
+
+# Load in a dll module built via pybind11
+def loadModule(moduleFullName, loadAllFunsIntoGlobals = True):
+  md = os.path.basename(os.path.splitext(moduleFullName)[0]) # Module name without ext.
+  dr = os.path.dirname(moduleFullName).replace("\\","/")
+  cwd = os.getcwd().replace("\\","/")
+  os.chdir(dr)
+  thelib = importlib.import_module(md)
+  if loadAllFunsIntoGlobals:
+    funNames = [x[0] for x in inspect.getmembers(thelib, inspect.isbuiltin)]
+    for x in funNames: globals()[x] = getattr(thelib, x)
+  os.chdir(cwd)
+  return thelib 
+
+
+
+
 
 
 # ==============================================================================
@@ -24,22 +77,28 @@ from sysconfig import get_paths
 # `rebuild = False` will not trigger a rebuild if the source file that contains
 #   // [[pycpp::export]] has no change. It behaves just like Rcpp. So enforce
 #   rebuild if anything is changed in some #included files.
+#
+# Almost never set 'exportModuleOnly' to False! Otherwise during 
+# multiprocessing, functions from module cannot be pickled. 
+# This is in contrast with R. Always use a different name to be assigned
+# to the return value, i.e., md1 = CharlieSourceCpp('file1.cpp'),
+# md2 = CharlieSourceCpp('file2.cpp')...
 # ==============================================================================
-def sourceCppCharlie(
+def CharlieSourceCpp(
   cppFile,
   cacheDir = '../tempFiles/CharliePycpp',
   compilerPath = 'g++',
-  flags = '-std=gnu++17 -shared -Ofast -Wall -fpic -m64 -march=native',
+  flags = '-std=gnu++17 -shared -DNDEBUG -O2 -Wall -fpic -m64 -march=native -mfpmath=sse -msse2 -mstackrealign',
   pythonHfileFolder = re.sub('\\\\', '/', get_paths()['include']),
   pybindInclude = re.sub('\\\\', '/', os.path.dirname(pybind11.__file__) + '/include'),
   extraIncludePaths = [],
   dllLinkFilePaths = [],
   sanitize = False,
-  sanitizerFlags = '-fsanitize=address,undefined',
+  sanitizerFlags = '-fno-omit-frame-pointer -fsanitize=address,undefined',
   verbose = True,
   rebuild = False,
   dryRun = False,
-  exportModuleOnly = False,
+  exportModuleOnly = True, 
   moduleName = None
 ):
   
@@ -64,9 +123,8 @@ def sourceCppCharlie(
   funNames = []
   if verbose:
     print(
-      "A line of '// [[pycpp::export]]' in the code implies the next line declares ",
-      "a function to be exported.",
-      sep = "")
+      "A line of '// [[pycpp::export]]' in the code implies the next line declares " + \
+      "a function to be exported.")
   for i in range(1, len(cppFileCodes)):
     if cppFileCodes[i - 1] == '// [[pycpp::export]]':
       x = cppFileCodes[i]
@@ -91,52 +149,41 @@ def sourceCppCharlie(
   # ============================================================================
   # Load history if there exists a history file.
   # ============================================================================
-  if os.path.isfile(historyFile):
-    H = cloudpickle.load(open(historyFile, 'rb'))
-  else: H = {}
+  H = {}
+  try: H = cloudpickle.load(open(historyFile, 'rb'))
+  except: H = {}
+  
+  
+  currentTimeStamps = getAllHfilesAndMtime(compilerPath, cppFullPath, sanitize)
   
   
   if cppFullPath in H:
-    tmpFolder = H[cppFullPath]
-    if os.path.exists(tmpFolder):
-      if os.path.exists(tmpFolder + '/' + cppFileBasename):
-        existingFile = open(tmpFolder + '/' + cppFileBasename).read()
-        currentFile = open(cppFile).read()
-        if (not rebuild) and (existingFile == currentFile):
-          print('Source file has no changes. No rebuild')
-          extname = '.pyd' if platform.system() == "Windows" else '.so'
-          for f in os.listdir(tmpFolder):
-            # ==================================================================
-            # The cache dir should always have only 1 dynamic library: a file
-            # with extension of '.so' or '.pyd'.
-            # ==================================================================
-            if pathlib.Path(f).suffix == extname:
-              curDir = os.getcwd()
-              os.chdir(tmpFolder)
-              md = os.path.basename(os.path.splitext(f)[0])
-              thelib = importlib.import_module(md)
-              if not exportModuleOnly:
-                for x in funNames: globals()[x] = getattr(thelib, x)
-              os.chdir(curDir)
-              break
-          return thelib;
+    noChange = currentTimeStamps == H[cppFullPath]['lastMtimes']
+    libIsThere = os.path.exists(H[cppFullPath]['libpath'])
+    exportCppIsThere = os.path.exists(H[cppFullPath]['exportCppPath'])
+    if (not rebuild) and noChange and exportCppIsThere and sanitize == H[cppFullPath]['sanitize']:
+      print('Source files have no changes. No rebuild.')
+      unloadModule(H[cppFullPath]['libpath'])
+      return loadModule(H[cppFullPath]['libpath'], 
+        loadAllFunsIntoGlobals = not exportModuleOnly)
+  
+  
+  if cppFullPath not in H:
+    destFullPath = cacheDirFullPath + '/C-' + str(len(H) + 1)
   else:
-    H[cppFullPath] = cacheDirFullPath + '/C-' + str(len(H) + 1)
-  destFullPath = H[cppFullPath]
-  cloudpickle.dump(
-    H, open(cacheDirFullPath + '/history.pickle', 'wb'))
-  
-  
-  try: shutil.rmtree(destFullPath)
-  except: pass
+    unloadModule(H[cppFullPath]['libpath'])
+    destFullPath = os.path.dirname(H[cppFullPath]['libpath'])
+    
+
   os.makedirs(destFullPath, exist_ok = True)
-  shutil.copy(cppFullPath, destFullPath + '/' + cppFileBasename)
   
   
-  if sanitize:
-    if moduleName is None: moduleName = "debug"
-  else:
-    moduleName = re.sub('[.]', 'd', 'm' + str(time.time())) if moduleName is None else moduleName
+  if moduleName is None:
+    moduleName = re.sub('[.]', 'd', 'm' + str(time.time())) # if moduleName is None else moduleName
+    if sanitize: moduleName += 'debug'
+  moduleName = 'CharliePycppModule_' + moduleName
+  
+  
   exportedCpp = destFullPath + '/exported.cpp'
   codeLines = [
     '#include "' + cppFullPath + '"', '', '', 
@@ -167,38 +214,55 @@ def sourceCppCharlie(
     linkCmd.append(' -L"' + dn + '" -l' + bn + ' ')
   linkCmd = ' '.join(linkCmd)
   cmd += linkCmd
-  if sanitize:
-    cmd += ' -fno-omit-frame-pointer ' + sanitizerFlags
+  if sanitize: cmd += ' ' + sanitizerFlags + ' '
     
-    
-  cmd += ' ' + exportedCpp + '  -o ' + destFullPath + '/' + moduleName
+  
+  moduleFullName = destFullPath + '/' + moduleName
+  if platform.system() == "Windows": moduleFullName += '.pyd'
+  else: moduleFullName += '.so'
   
   
-  if platform.system() == "Windows": cmd += '.pyd'
-  else: cmd += '.so'
+  cmd += ' ' + exportedCpp + '  -o ' + moduleFullName
   
   
   if dryRun: return cmd
   if verbose: print(cmd)
-  try:
-    if sanitize: tmp = os.system("unset LD_PRELOAD; " + cmd)
-    else: tmp = os.system(cmd)
-    curDir = os.getcwd()
-    os.chdir(destFullPath)
-    ntried = 0 
-    while ntried < 10:
-      try:
-        ntried += 1
-        if verbose: print('Load module..')
-        thelib = importlib.import_module(moduleName)
-        if not exportModuleOnly:
-          for x in funNames: globals()[x] = getattr(thelib, x)
-        if verbose: print('Success.')
-        break
-      except: continue
-    os.chdir(curDir)
-  except: pass
+
+  
+  if sanitize: tmp = os.system("unset LD_PRELOAD; " + cmd)
+  else: tmp = os.system(cmd)
+  thelib = loadModule(moduleFullName, loadAllFunsIntoGlobals = not exportModuleOnly)
+  
+  
+  H[cppFullPath] = {}
+  H[cppFullPath]['lastMtimes'] = currentTimeStamps
+  H[cppFullPath]['exportCppPath'] = exportedCpp
+  H[cppFullPath]['libpath'] = moduleFullName
+  H[cppFullPath]['sanitize'] = sanitize
+  with open(historyFile, 'wb') as f: cloudpickle.dump(H, f)
+  
+  
   return thelib
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
