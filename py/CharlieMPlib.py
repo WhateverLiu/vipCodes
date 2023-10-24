@@ -98,6 +98,7 @@ def CharliePara (
   for x in globals().values():
     if inspect.ismodule(x) and x.__name__[:19] == 'CharliePycppModule_':
       p = os.path.dirname(x.__file__)
+      p = p.replace('\\', '/')
       modDirs.append("sys.path.append('" + p + "')")
   modDirs = '\n'.join(modDirs) + '\n\n'
   
@@ -241,6 +242,7 @@ def CharlieParaOnCluster (
   for x in globals().values():
     if inspect.ismodule(x) and x.__name__[:19] == 'CharliePycppModule_':
       p = os.path.dirname(x.__file__)
+      p = p.replace('\\', '/')
       modDirs.append("sys.path.append('" + p + "')")
   modDirs = '\n'.join(modDirs) + '\n\n'
   
