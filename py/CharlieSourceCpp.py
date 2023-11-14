@@ -88,13 +88,14 @@ def CharlieSourceCpp(
   cppFile,
   cacheDir = '../tempFiles/CharliePycpp',
   compilerPath = 'g++',
-  flags = '-std=gnu++17 -shared -DNDEBUG -O2 -Wall -fpic -m64 -march=native -mfpmath=sse -msse2 -mstackrealign',
+  optFlag = '-O2',
+  flags = '-std=gnu++17 -shared -DNDEBUG -Wall -fpic -m64 -march=native -mfpmath=sse -msse2 -mstackrealign',
   pythonHfileFolder = re.sub('\\\\', '/', get_paths()['include']),
   pybindInclude = re.sub('\\\\', '/', os.path.dirname(pybind11.__file__) + '/include'),
   extraIncludePaths = [],
   dllLinkFilePaths = [],
   sanitize = False,
-  sanitizerFlags = '-fno-omit-frame-pointer -fsanitize=address,undefined',
+  sanitizerFlags = '-g -fno-omit-frame-pointer -fsanitize=address,undefined',
   verbose = True,
   rebuild = False,
   dryRun = False,
@@ -196,7 +197,8 @@ def CharlieSourceCpp(
   open(exportedCpp, 'w').writelines('\n'.join(codeLines))
   
   
-  if sanitize: flags += ' -g '
+# if sanitize: flags += ' -g '
+  flags += optFlag + ' '
   cmd = compilerPath + ' ' + flags + ' -I"' + pythonHfileFolder + '" -I"' + \
     pybindInclude + '"'
   if extraIncludePaths:

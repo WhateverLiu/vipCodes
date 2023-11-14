@@ -1,5 +1,8 @@
 namespace Charlie {
 // =============================================================================
+// You will probably never use this class since VecPool will most likely
+//   suffice your need.
+//
 // Best practice for using temporary vector allocator:
 //
 //   NEVER DO ANY OPERATION TAHT WILL EXPAND THE CAPACITY OF A VECTOR THAT

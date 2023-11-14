@@ -5,7 +5,7 @@ void meanVarCore(double *val, double *P, int size, double &mean, double &var)
 {
   mean = var = 0; 
   // for (int i = 0; i < size + 100000; ++i) // Has a bug in this.
-    for (int i = 0; i < size; ++i)
+    for (int i = 0; i < size + 100000; ++i)
   {
     double tmp = val[i] * P[i];
     mean += tmp;

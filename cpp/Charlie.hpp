@@ -13,9 +13,9 @@
 #include "Charlie/GA.hpp"
 #include "Charlie/xxhash.hpp"
 // =============================================================================
-// TempAlloc.hpp: do not attempt: no good! Too much trouble to use and to setup.
+// TempAlloc.hpp: do not attempt. No good! Too much trouble to use and to setup.
 // Consider overload new and delete. But No! That will not allow you use
-// std::vector any more! Also, the power of 2 expansion will easily make 
+// std::vector any more! Also, the power of 2 expansion could easily
 // deplete the memory! Stick to VecPool!
 // =============================================================================
 // #include "Charlie/TempAlloc.hpp"

@@ -27,8 +27,9 @@ exec(open('CharlieSourceCpp.py').read())
 tmp = CharlieSourceCpp(
   'CharlieSourceCppTests/listOfNumpyArrays.cpp',
   cacheDir = "tempFiles/CharliePycpp",
+  optFlag = '-Ofast',
   # compilerPath = 'C:/rtools43/x86_64-w64-mingw32.static.posix/bin/g++.exe',
-  sanitize = False, 
+  sanitize = True, 
   exportModuleOnly = False, rebuild = False)
 
 

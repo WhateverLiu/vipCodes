@@ -162,7 +162,7 @@ struct ThreadPool
   // ===========================================================================
   void parFor(std::size_t begin, std::size_t end,
               std::function <bool(std::size_t, std::size_t)> &&run,
-              std::size_t grainSize,
+              std::size_t grainSize = 1,
               std::function <bool(std::size_t)> &&beforeRun = [](std::size_t) { return false; },
               std::function <bool(std::size_t)> &&afterRun  = [](std::size_t) { return false; })
   {
@@ -175,9 +175,6 @@ struct ThreadPool
     this->beforeRun = &beforeRun;
     this->afterRun = &afterRun;
     this->dT.reset(begin, end, grainSize);
-    
-    
-    // if (this->haveFood == nullptr) Rcout << "this->haveFood == nullptr!\n";
     
     
     std::fill(this->haveFood, this->haveFood + this->maxCore, true); // Kick off job runs.

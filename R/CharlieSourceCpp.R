@@ -33,6 +33,8 @@ getRcppRelatedIncludePath <- function(pkgNames)
 #' @param compilerPath  Full path to the compiler. If the compiler does not auto
 #' search locations that contain standard headers, add the paths in \code{includePaths}.
 #' 
+#' @param optFlag  Compiler optmization flag. Default '-O2'.
+#' 
 #' @param flags  Compiler flags to be added.
 #' 
 #' @param includePaths  A vector of paths to C++ libraries to be included.
@@ -66,7 +68,9 @@ CharlieSourceCpp <- function (
     
     compilerPath = Sys.which('g++'),
     
-    flags = '-std=gnu++17 -shared -DNDEBUG -O2 -Wall -fpic -m64 -march=native -mfpmath=sse -msse2 -mstackrealign',
+    optFlag = '-O2',
+    
+    flags = '-std=gnu++17 -shared -DNDEBUG -Wall -fpic -m64 -march=native -mfpmath=sse -msse2 -mstackrealign',
     
     includePaths = c(
       R.home('include'), 
@@ -79,12 +83,12 @@ CharlieSourceCpp <- function (
     ),
     
     sanitize = FALSE,
-    sanitizerFlags = '-fno-omit-frame-pointer -fsanitize=address,undefined',
+    sanitizerFlags = '-g -fno-omit-frame-pointer -fsanitize=address,undefined',
     
     
     # embeddedR = TRUE, 
     rebuild = FALSE, 
-    cacheDir = '../tempFiles/CharlieRcpp',
+    cacheDir = '../tempFiles',
     # cleanupCacheDir = FALSE, 
     verbose = TRUE
     # dryRun = FALSE
@@ -93,6 +97,7 @@ CharlieSourceCpp <- function (
     )
 {
   # rebuild = rebuild || sanitize
+  if (sanitize) cacheDir = paste0(cacheDir, '/sanitized')
   dir.create(cacheDir, showWarnings = F, recursive = TRUE)
   cacheDir <- path.expand(cacheDir)
   cacheDir <- Rcpp:::.sourceCppPlatformCacheDir(cacheDir)
@@ -212,6 +217,7 @@ CharlieSourceCpp <- function (
     }
     
     
+    flags = paste0(flags, ' ', optFlag)
     if (sanitize) flags = paste0(flags, '  ', sanitizerFlags)
     
     

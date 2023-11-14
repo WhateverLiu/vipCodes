@@ -1,4 +1,6 @@
-// #include "charlieThreadPool.hpp"
+#pragma once
+#include "ThreadPool.hpp"
+#include "VecPool.hpp"
 // 
 // 
 // #ifndef vec 
@@ -87,7 +89,7 @@ struct Sort
   
   
   template <typename Iter, typename Compare>  
-  void operator() (Iter x, Iter xend, Compare f, 
+  void operator() (Iter x, Iter xend, Compare &&f, 
                 Charlie::ThreadPool *cp = nullptr,
                 Charlie::VecPool *vp = nullptr)
   {

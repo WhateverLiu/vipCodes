@@ -10,7 +10,9 @@ List uniqueVec(List X)
   
   auto hashFun = [](const std::vector<int> &v)->std::size_t
   {
-    return Charlie::hash(&v[0], sizeof(int) * v.size(), 42);
+    // There are two APIs of the hash functions: seeded and unseeded.
+    // return Charlie::xxhash(&v[0], sizeof(int) * v.size(), 42);
+    return Charlie::xxhash(&v[0], sizeof(int) * v.size());
   };
   
   
@@ -35,6 +37,9 @@ List uniqueVec(List X)
   // decltype() auto deduces the type of object!
   std::unordered_set<std::vector<int>, decltype(hashFun), decltype(equalFun)> S(
       13, hashFun, equalFun);
+  // std::unordered_set<std::vector<int>> S(13, hashFun, equalFun);
+  
+  
   // Due to custom hashFun and equalFun, the initial bucket count MUST be 
   //   specified. In the case where bucket count is not specified, the default
   //   bucket count is 11! 
