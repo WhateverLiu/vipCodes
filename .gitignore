@@ -1,2 +1,6 @@
 */**/*tempFiles
 */**/__pycache__
+tempFiles
+__pycache__
+.Rhistory
+*/**/.Rhistory

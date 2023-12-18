@@ -90,7 +90,7 @@ std::vector<std::vector<double> > testGA(
     double initNoise, double minNoise,
     int popuSize, int survivalSize, 
     int maxGen, int Ngen2minNoise,
-    std::string reproduceSelection, int randomSeed,
+    int randomSeed,
     int maxCore)
 {
   
@@ -99,21 +99,13 @@ std::vector<std::vector<double> > testGA(
            popuSize, survivalSize, initNoise, minNoise, maxGen, Ngen2minNoise);
   
   
-  // template <typename ing, typename num, typename GA>
-  // runGAobj(
-  //   GA &initializedG, std::string reproduceSelectionMethod,
-  //   ing NcandidateToSaveLearningCurve,
-  //   ing maxIter, ing randomSeed, 
-  //   CharlieThreadPool *cp, bool verbose = true)
-  
-  
   int NcandidateToSaveLearningCurve = 10;
   
   
   Charlie::ThreadPool cp(std::move(maxCore));
   Charlie::VecPool vp;
   auto rst = Charlie::runGAobj<int, double, GAobj> (
-    ga, std::move(reproduceSelection), NcandidateToSaveLearningCurve, 
+    ga, NcandidateToSaveLearningCurve, 
     maxGen, randomSeed, cp, vp, true);
   
   
