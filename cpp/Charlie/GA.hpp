@@ -59,12 +59,12 @@ struct GAcmp
 
 template<typename ing, typename num, typename GA>
 inline void ParaReproduce(
-    GA *G, MiniPCG *rngs, ing *odr, ing *parent, Charlie::ThreadPool &tp)
+    GA *G, MiniPCG *rngs, ing *id, ing *parent, Charlie::ThreadPool &tp)
 {
   tp.parFor(0, G->popuSize() - G->survivalSize(), [&](
       std::size_t objI, std::size_t t)->bool
   {
-    G->reproduceTo(parent[objI], odr[G->survivalSize() + objI], rngs[objI]);
+    G->reproduceTo(parent[objI], id[G->survivalSize() + objI], rngs[objI]);
     return false;    
   }, 1);
 }
@@ -79,10 +79,10 @@ inline void ParaReproduce(
 
 // 3.  void copyTo(ing i, ing j): copy the i_th candidate's content to the j_th candidate.
 
-// 4.  void reproduceTo(ing i, ing j, RNG &rng): i_th candidate reproduce a child, 
-//     placing it in the
-//     container occupied by j. This amounts to (i) copyTo(i, j), (ii) add noises to 
-//     candidate j's parameters, (iii) run(j).
+// 4.  void reproduceTo(ing i, ing j, RNG &rng): Let i_th candidate reproduce a child, 
+//     and place it in the container occupied by j. 
+//     This amounts to (i) copyTo(i, j), (ii) add noises to candidate j's 
+//     parameters, (iii) run(j).
 
 // 5.  ing popuSize(): return population size.
 
@@ -107,7 +107,6 @@ inline void ParaReproduce(
 template <typename ing, typename num, typename GA>
 std::vector<std::vector<num> > runGAobj(
     GA &initializedG, 
-    std::string &&reproduceSelectionMethod,
     ing NcandidateToSaveLearningCurve,
     ing maxIter, 
     ing randomSeed, 
@@ -115,114 +114,88 @@ std::vector<std::vector<num> > runGAobj(
     Charlie::VecPool &vp,
     bool verbose = true)
 {
-  ing reproduceSelection = 0;
-  if (reproduceSelectionMethod == "linearProb") reproduceSelection = 1;
-  else if (reproduceSelectionMethod == "invProb") reproduceSelection = 2;
-  
-  
   GA &G = initializedG;
   ing popuSize = G.popuSize();
   ing survivalSize = G.survivalSize();
   NcandidateToSaveLearningCurve = std::min(
     survivalSize, NcandidateToSaveLearningCurve);
+  auto &id = *G.corder();
+  id.resize(popuSize);
+  std::iota(id.begin(), id.end(), 0);
+  auto parent = vp.lend<ing> (popuSize - survivalSize);
   
   
-  std::vector<ing> &objfodr = *G.corder();
-  objfodr.resize(popuSize);
-  std::iota(objfodr.begin(), objfodr.end(), 0);
-  
-  
-  std::vector<num> pvec;
-  if (reproduceSelection != 0)
-  {
-    pvec.resize(survivalSize);
-    if (reproduceSelection == 1)
-    {
-      for (ing i = 0; i < survivalSize; ++i) 
-        pvec[i] = survivalSize - i;
-    }
-    else
-    {
-      for (ing i = 0; i < survivalSize; ++i) 
-        pvec[i] = 1.0 / (i + 1);
-    }
-    std::partial_sum(pvec.begin(), pvec.end(), pvec.begin());
-    for (auto & x: pvec) x /= pvec.back();
-    pvec.back() = 1.0;
-  }
-  
-  
-  std::vector<ing> parent(popuSize - survivalSize);
-  for (ing i = 0, iend = parent.size(); i < iend; ++i) 
-    parent[i] = i % survivalSize;
-  
-  
-  auto U = std::uniform_real_distribution<num> (0, 1);
   auto rngs = vp.lend<MiniPCG>(parent.size());
-  // std::vector<MiniPCG> rngs(parent.size());
   for (ing i = 0, iend = rngs.size(); i < iend; ++i)
     rngs[i].seed(randomSeed + 1 + i);
   
   
-  // std::vector<std::vector<num> > learningCurve(maxIter, std::vector<num> (
-  //     NcandidateToSaveLearningCurve));
   auto learningCurve = vp.lend<num> (maxIter, NcandidateToSaveLearningCurve);
   
   
-  std::partial_sort(objfodr.begin(), objfodr.begin() + G.survivalSize(), 
-                    objfodr.end(), GAcmp<ing, GA>(&G));
+  std::partial_sort(id.begin(), id.begin() + survivalSize, 
+                    id.end(), GAcmp<ing, GA>(&G));
+  
+  
+  for (ing k = 0, kend = popuSize - survivalSize; k < kend; )
+  {
+    for (ing i = 0; i < survivalSize and k < kend; ++i, ++k)
+      parent[k] = id[i];
+  }
   
   
   for (ing iter = 0; iter < maxIter; ++iter)
   { 
     if (verbose)
-    {
+    { 
 #ifdef Rcpp_hpp 
-      Rcpp::Rcout << "Lowest object function value = " << G.getval(objfodr[0]) << "\n";
+      Rcpp::Rcout << "Lowest object function value = " << G.getval(id[0]) << "\n";
 #else
-      std::cout << "Lowest object function value = " << G.getval(objfodr[0]) << "\n";
+      std::cout << "Lowest object function value = " << G.getval(id[0]) << "\n";
 #endif
     }
     
     
-    if (reproduceSelection != 0)
-    {
-      for (ing k = survivalSize; k < popuSize; ++k)
-      {
-        ing u = std::lower_bound(pvec.begin(), pvec.end(), U(rngs[0])) - pvec.begin();
-        parent[k - survivalSize] = u;
-      }
-    }
+    ParaReproduce<ing, num, GA> (&G, &rngs[0], &id[0], &parent[0], cp);
     
     
-    ParaReproduce<ing, num, GA> (
-        &G, &rngs[0], &objfodr[0], &parent[0], cp);
-    
-    
-    std::partial_sort(objfodr.begin(), objfodr.begin() + G.survivalSize(), 
-                      objfodr.end(), GAcmp<ing, GA>(&G));
+    std::partial_sort(id.begin(), id.begin() + G.survivalSize(), 
+                      id.end(), GAcmp<ing, GA>(&G));
     
     
     for (ing k = 0; k < NcandidateToSaveLearningCurve; ++k)
-      learningCurve[iter][k] = G.getval(objfodr[k]);
+      learningCurve[iter][k] = G.getval(id[k]);
+    
+    
+    for (ing k = 0, kend = popuSize - survivalSize; k < kend; )
+    {
+      for (ing i = 0; i < survivalSize and k < kend; ++i, ++k)
+        parent[k] = id[i];
+    }
     
     
     G.actionsBetweenGenerations(iter);
   }
   
   
-  std::sort(objfodr.begin(), objfodr.end(), GAcmp<ing, GA>(&G));
+  std::sort(id.begin(), id.end(), GAcmp<ing, GA>(&G));
+  
   
   if (verbose) 
   {
 #ifdef Rcpp_hpp
     Rcpp::Rcout << "Lowest object function value = " << 
-      G.getval(objfodr[0]) << "\n";
+      G.getval(id[0]) << "\n";
 #else
     std::cout << "Lowest object function value = " << 
-      G.getval(objfodr[0]) << "\n";
+      G.getval(id[0]) << "\n";
 #endif
   }
+  
+  
+  vp.recall(rngs);
+  vp.recall(parent);
+  
   
   return learningCurve;
 }
