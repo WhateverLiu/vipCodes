@@ -10,7 +10,7 @@ amod = csc.CharlieSourceCpp(
   'bananaFun.cpp', sanitize = False, optFlag = '-Ofast')
 
 
-howManyCandHistoryToSave = 3 # 保存前几candidates之learning history: function values.
+howManyCandHistoryToSave = 0 # 保存前几candidates之learning history --- function values.
 popuSize = 1000 # 人口。
 survivalSize = 300 # 样本。
 maxGen = 1000 # 一共多少代。
