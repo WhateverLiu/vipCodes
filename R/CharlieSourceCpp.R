@@ -62,40 +62,56 @@ getRcppRelatedIncludePath <- function(pkgNames)
 #'
 #'
 CharlieSourceCpp <- function (
-    file = "", 
-    # code = NULL, 
-    env = globalenv(), 
     
-    compilerPath = Sys.which('g++'),
-    
-    optFlag = '-O2',
-    
-    flags = '-std=gnu++17 -shared -DNDEBUG -Wall -fpic -m64 -march=native -mfpmath=sse -msse2 -mstackrealign',
-    
-    includePaths = c(
-      R.home('include'), 
-      getRcppRelatedIncludePath('Rcpp')
-      # getRcppRelatedIncludePath('RcppEigen')
-    ),
-    
-    dllLinkFilePaths = c(
-      # R.home('lib')
-    ),
-    
-    sanitize = FALSE,
-    sanitizerFlags = '-g -fno-omit-frame-pointer -fsanitize=address,undefined',
-    
-    
-    # embeddedR = TRUE, 
-    rebuild = FALSE, 
-    cacheDir = '../tempFiles',
-    # cleanupCacheDir = FALSE, 
-    verbose = TRUE
-    # dryRun = FALSE
-    # windowsDebugDLL = FALSE, 
-    # echo = TRUE
-    )
+  file = "", 
+  
+  env = globalenv(), 
+  
+  compilerPath = c('/opt/rh/gcc-toolset-12/root/bin/g++', Sys.which('g++')),
+  
+  optFlag = '-O2',
+  
+  cppStd = '-std=gnu++20',
+  
+  flags = '-shared -DNDEBUG -Wall -fpic -m64 -march=native -mfpmath=sse -msse2 -mstackrealign',
+  
+  includePaths = c(
+    R.home('include'), 
+    getRcppRelatedIncludePath('Rcpp')
+    # getRcppRelatedIncludePath('RcppEigen')
+  ),
+  
+  dllLinkFilePaths = c(
+    # R.home('lib')
+  ),
+  
+  sanitize = FALSE,
+  
+  sanitizerFlags = '-g -fno-omit-frame-pointer -fsanitize=address,undefined',
+  
+  rebuild = FALSE, 
+  
+  cacheDir = '../tempFiles',
+  
+  verbose = TRUE
+)
 {
+  
+  # c('/opt/rh/gcc-toolset-12/root/bin/g++', Sys.which('g++'))
+  if (length(compilerPath) == 2)
+  {
+    if (file.exists(compilerPath[1])) compilerPath = compilerPath[1]
+    else
+    {
+      compilerPath = compilerPath[2]
+      if (cppStd == '-std=gnu++20') cppStd = '-std=gnu++17'
+    }
+  }
+  
+  
+  flags = paste0(cppStd, ' ', flags)
+  
+  
   # rebuild = rebuild || sanitize
   if (sanitize) cacheDir = paste0(cacheDir, '/sanitized')
   dir.create(cacheDir, showWarnings = F, recursive = TRUE)
@@ -148,6 +164,7 @@ CharlieSourceCpp <- function (
   # ============================================================================
   srcFile = paste0(context$buildDirectory, '/', context$cppSourceFilename)
   srcFileContent = readLines(srcFile)
+  # print(context$cppSourcePath)
   srcFileContent = srcFileContent[-(1:length(readLines(context$cppSourcePath)))]
   srcFileContent = c(paste0('#include "', context$cppSourcePath, '"'), srcFileContent)
   writeLines(srcFileContent, srcFile)

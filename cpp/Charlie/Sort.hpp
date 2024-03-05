@@ -16,7 +16,9 @@ namespace Charlie {
 
 
 // Can only sort elements in a block of memory.
-struct Sort
+// This is slower than 
+//   std::sort(std::execution::par_unseq, x.begin(), x.end());
+struct Sort // 
 {
 
   template <typename num, typename Compare>  
@@ -33,6 +35,7 @@ struct Sort
     
     uint64_t Nblock = std::round(std::exp2(uint64_t(
       std::round(std::log2(cp->maxCore * 4.0) / 2)) * 2));
+    // std::cout << "Nblock = " << Nblock << "\n";
     
     
     std::vector<uint64_t> offset;
@@ -105,6 +108,13 @@ struct Sort
     (*this)(&*x, &*xend, cp);
   }
 };
+
+
+// template<typename Iter>
+// struct Sort
+// {
+//   Sort(Iter begin, Iter end)
+// };
 
 
 }
