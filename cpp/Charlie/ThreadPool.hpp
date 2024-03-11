@@ -248,6 +248,8 @@ struct ThreadPool
         allfinished &= !this->haveFood[i];
     }
   }
+  
+  
 };
 
 

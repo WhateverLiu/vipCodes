@@ -25,7 +25,7 @@ namespace Charlie {
 class VecPool
 {
 private:
-  std::vector<std::vector<char>> X;
+  std::vector<std::vector<char> > X;
   
   
   // Will zero both vectors' sizes. Capacities do not change.
@@ -118,7 +118,6 @@ private:
     }
     std::vector<T> rst;
     darkSwap(rst, X.back());
-    // auto rst = char2T<T> (X.back());
     rst.resize(size + 1); // Always prefer slightly larger capacity.
     rst.pop_back();
     X.pop_back();
@@ -148,7 +147,7 @@ private:
   
 
 public:
-  std::vector<std::vector<char>> & getPool() { return X; }
+  std::vector<std::vector<char> > & getPool() { return X; }
   void test0(); // Test if std::vector is implemented as 3 pointers.
   void test1(); // Test if vectors fetched from or recalled to VecPool are handled correctly.
   void test2(); // Test if nested vectors can be handled correctly.
@@ -222,13 +221,13 @@ public:
   }
   
   
-  VecPool()
+  VecPool(int size = 25)
   {
     std::srand(std::time(nullptr));
     test0();
     test1();
     test2();
-    std::vector<std::vector<char>>().swap(X);
+    std::vector<std::vector<char> >(size).swap(X);
   }
   
   
@@ -250,6 +249,7 @@ void VecPool::test0()
   typedef std::tuple<char, char, char> tupe; // Arbitrarily selected type.
   std::vector<tupe> a(fullSize); // Just for creating a vector of an arbitrary type.
   a.resize(subSize); // Downsize the vector.
+  // Rcout << "1.1\n";
   
   
   // ===========================================================================
@@ -260,6 +260,7 @@ void VecPool::test0()
   auto ptr = (std::size_t*)(&a); // Read but won't write.
   bool sizePointerCool     = ptr[0] + sizeof(tupe) * subSize  == ptr[1];
   bool capacityPointerCool = ptr[0] + sizeof(tupe) * fullSize == ptr[2];
+  // Rcout << "1.2\n";
   
   
   if (!sizePointerCool or !capacityPointerCool) throw std::runtime_error(

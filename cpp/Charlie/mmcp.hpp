@@ -10,4 +10,13 @@ inline void mmcp(DestPtr dest, SourPtr src, std::size_t Nbyte)
 }
 
 
+
+
+// template<typename Xptr, typename Yptr, std::size_t bufferNbyte>
+// inline void swapBuffer(Xptr x, Yptr y)
+// {
+//   
+// }
+
+
 }
