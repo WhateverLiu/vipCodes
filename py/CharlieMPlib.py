@@ -192,7 +192,8 @@ def CharlieParaOnCluster (
   jobName = "CH",
   memGBperProcess = 1,
   NthreadPerProcess = 1,
-  verbose = True
+  verbose = True,
+  singletonToCluster = False
 ):
   
   
@@ -200,7 +201,8 @@ def CharlieParaOnCluster (
   maxNprocess = max(1, min(maxNprocess, len(X)))
   delta = len(X) / maxNprocess
   bounds = sorted(list(set(np.round(np.arange(maxNprocess + 1) * delta).astype(int))))
-  if len(bounds) <= 2: return [fun(x, commonData) for x in X]
+  if len(bounds) <= 2 and not singletonToCluster: 
+    return [fun(x, commonData) for x in X]
   
   
   tmpDir = datetime.datetime.now(pytz.timezone("America/New_York")).strftime(
@@ -323,9 +325,10 @@ def CharlieParaOnCluster (
   
 
 
-
+# ==============================================================================
 # Example: given an N x P matrix `X` and list `Y` of P x M matrices, multiply `X` 
 # and each element in `Y` and sum up the elements.
+# ==============================================================================
 if False:
   
   

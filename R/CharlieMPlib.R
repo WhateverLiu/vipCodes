@@ -1,5 +1,3 @@
-
-
 #' Group jobs
 #' 
 #' Group jobs such that the computing cost for each group is approximately the 
@@ -452,6 +450,10 @@ double stu(NumericVector x) { return std::accumulate(x.begin(), x.end(), 0.0); }
 #' @param verbose  If 0 < verbose < 1 and if there are \code{N} items to be 
 #' processed, print the progress by each \code{N * verbose} items.
 #' 
+#' @param singletonToCluster  If \code{X}'s size is 1 and 
+#' \code{singletonToCluster} is set to TRUE, load the job to the 
+#' cluster anyway.
+#' 
 #' @return A list or an environment. 
 #' 
 #' \code{wait = TRUE} returns a list. The \code{i}th element is the result
@@ -501,24 +503,15 @@ CharlieParaOnCluster <- function(
   RscriptExePath = NULL,
   clusterHeadnodeAddress = "rscgrid139.air-worldwide.com",
   sshPasswordPath = "../data/passwd.Rdata",
-  ofilesDir = "../recycleBin/Ofiles",
-  MPtempDir = "../tempFiles/CharlieTempMP/C",
+  ofilesDir = "../tempFiles/Ofiles",
+  MPtempDir = "../tempFiles/C",
   jobName = "CH",
   memGBperProcess = 1,
   NthreadPerProcess = 1,
-  verbose = 0.01
-  # sshPasswordPathIsActuallyPassWord = F,
-  # waitUserInputPassWord = F
+  verbose = 0.01,
+  singletonToCluster = FALSE
 )
 {
-  
-  
-  # if (!sshPasswordPathIsActuallyPassWord && !waitUserInputPassWord)
-  #   load(sshPasswordPath)
-  # else if (sshPasswordPathIsActuallyPassWord)
-  #   passwd = sshPasswordPath
-  # else
-  #   passwd = getPass()
   
   
   dir.create(ofilesDir, showWarnings = F, recursive = T)
@@ -533,7 +526,7 @@ CharlieParaOnCluster <- function(
   blocks = unique(as.integer(round(
     seq(1L, length(X) + 1L, len = maxNprocess + 1L))))
   maxNprocess = min(maxNprocess, length(blocks) - 1L)
-  if (maxNprocess <= 1L)
+  if (maxNprocess <= 1L & !singletonToCluster)
   {
     message("One core finishes the job.\n")
     return(lapply(X, function(x) fun(x, commonData)))
@@ -582,11 +575,9 @@ CharlieParaOnCluster <- function(
   loadedLibNames = (.packages())
   
   
-  # print(funNames)
   tx = paste0("save(", paste0(funNames, collapse = ", "),
               ", loadedLibNames, commonData, ",
               paste0("file = '", tmpDir, "/commonData.Rdata')"))
-  # print(tx)
   eval(parse(text = tx))
   
   
@@ -639,7 +630,8 @@ CharlieParaOnCluster <- function(
     
     s[[length(s) + 1]] = paste0("verbose = ", verbose)
     s[[length(s) + 1]] = "rst = list()"
-    s[[length(s) + 1]] = "if (verbose > 0.5 || verbose <= 0) rst = lapply(X, function(x) fun(x, commonData)) else {"
+    s[[length(s) + 1]] = 
+      "if (verbose > 0.5 || verbose <= 0) rst = lapply(X, function(x) fun(x, commonData)) else {"
     s[[length(s) + 1]] = "
       gap = max(1L, as.integer(round(length(X) * verbose)))
       cat('N(items) =', length(X), ': ')
@@ -651,7 +643,6 @@ CharlieParaOnCluster <- function(
     }"
     
     
-    # s[[length(s) + 1]] = "rst = lapply(X, function(x) fun(x, commonData))"
     s[[length(s) + 1]] = "save(rst, file = paste0(tmpDir, '/output/rst-', i, '-.Rdata'))"
     s[[length(s) + 1]] = 
       "finishName = paste0('f-', Sys.info()['nodename'], '-pid', Sys.getpid(), '-', i)"
@@ -756,11 +747,11 @@ CharlieParaOnCluster <- function(
   }
   
   
+  # ============================================================================
   # If not to wait, files have already been saved on the disk.
   # system(paste0(RscriptExePath, " ", tmpDir, "/script/s-", 1, "-.R"), wait = F)
-  
-  
   # Return absolute paths of all the results.
+  # ============================================================================
   results = new.env()
   results$resultPaths = paste0(
     normalizePath(tmpDir, winslash = '/'), "/output/rst-",
