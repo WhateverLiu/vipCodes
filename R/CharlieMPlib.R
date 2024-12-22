@@ -1,3 +1,5 @@
+
+
 #' Group jobs
 #' 
 #' Group jobs such that the computing cost for each group is approximately the 
@@ -76,7 +78,55 @@ equalChunk = function(costs, Ncore)
 
 
 
+#'
+#' Save all seeable functions in the environment \code{envir}.
+#' 
+#' The function definitions are written in a text file, e.g. an R script
+#' so that it can be sourced during parallel computing. The motivation
+#' is to counter the following odd behavior: if we save nested function
+#' objects in \code{.Rdata}, the data file could be super large.
+#' 
+#' @param envir The environment. 
+#' 
+#' @return A string vector to be written as a text file.
+#' 
+Cpara__extractAllSeeableFuns__ <- function(envir)
+{
+  envlist = list(envir)
+  while (!identical( envir, globalenv()))
+  {
+    envir = parent.env(envir)
+    envlist[[length(envlist) + 1]] = envir
+  }
+  rstEnv = new.env()
+  for (i in length(envlist):1) # Current environment dominates parent.
+  {
+    e = envlist[[i]]
+    for ( n in names(e) )
+    {
+      if ( is.function( e[[n]])) { rstEnv[[n]] = e[[n]] }
+    }
+  }
+  
+  
+  rst = list()
+  for (n in names(rstEnv))
+  {
+    f = gsub(' |[{]', '', paste0(deparse(body(rstEnv[[n]])), collapse = ''))
+    if (substr(f, 1, 6) == ".Call(" | substr(f, 1, 16) == "invisible(.Call(") 
+      next
+    rst[[length(rst) + 1]] = paste0(
+      n, ' = ', 
+      paste0(deparse(rstEnv[[n]]), collapse = '\n'),
+      '\n\n\n\n')
+  }
+  unlist(rst)
+}
 
+
+
+
+#'
 #' Naive distributed computing
 #' 
 #' Naive multiprocessing on shared disk architecture.
@@ -85,7 +135,9 @@ equalChunk = function(costs, Ncore)
 #' 
 #' @param commonData  An R object of any type.
 #' 
-#' @param fun  An R function with signature \code{fun(X[[i]], commonData)}.
+#' @param fun  An R function with signature \code{fun(X[[i]], commonData)}. If 
+#' \code{fun} is a path string to an R script, the R script will be parsed
+#' into an R function and resupplied to \code{CharliePara()}.
 #' 
 #' @param maxNprocess  Maximum number of processes to spawn. Default 15.
 #' 
@@ -134,22 +186,46 @@ equalChunk = function(costs, Ncore)
 CharliePara <- function(
   X, commonData, fun, 
   maxNprocess = 15L, 
-  MPtempDir = "../tempFiles/CharlieTempMP/C",
+  MPtempDir = "../tempFiles/C",
   wait = TRUE,
   RscriptExePath = NULL,
   verbose = 0.01,
   estimatedCosts = NULL
 )
 {
+  
+  # If fun is a string of the path to an R script to be executed.
+  if (is.character(fun))
+  {
+    fun = normalizePath(fun)
+    funName = paste0('f_', gsub("[^a-zA-Z0-9]", "_", fun))
+    funBody = c(paste0(
+      funName, " = function(X = NULL, commonData = NULL) {"), 
+      readLines(fun), "}")
+    f = eval( parse(text = paste0(funBody, collapse = "\n")) )
+    return (CharliePara(
+      list(0L), commonData, fun = f, 
+      maxNprocess, 
+      MPtempDir,
+      wait,
+      RscriptExePath,
+      verbose,
+      estimatedCosts
+    ))
+  }
+  
+  
+  
   if (length(X) == 0) return(NULL)
   
   
   if (!is.null(estimatedCosts))
   {
-    originalOdr = order(estimatedCosts, decreasing = T)
-    X = X[originalOdr]
-    
+    X = X[order(estimatedCosts, decreasing = T)]
   }
+  
+  
+  funs2save = Cpara__extractAllSeeableFuns__(environment()) 
   
   
   maxNprocess = max(1L, min(maxNprocess, length(X)))
@@ -177,11 +253,11 @@ CharliePara <- function(
   tmpDir = normalizePath(tmpDir, winslash = "/")
   
   
-  lsobjs = unique(c(ls(envir = .GlobalEnv), ls()))
-  funNames = lsobjs[sapply(lsobjs, function(x)
-  {
-    eval(parse(text = paste0("is.function(", x, ")")))
-  })]
+  # lsobjs = unique(c(ls(envir = .GlobalEnv), ls()))
+  # funNames = lsobjs[sapply(lsobjs, function(x)
+  # {
+  #   eval(parse(text = paste0("is.function(", x, ")")))
+  # })]
   
   
   sourceCppRcodePath = unlist(lapply(getLoadedDLLs(), function(x)
@@ -194,7 +270,8 @@ CharliePara <- function(
     
     
     # Check if there are exactly one .R and one .cpp file in the same directory.
-    if (sum(filesInFolderExt == "cpp" |  filesInFolderExt == "R") != 2L) return(NULL)
+    if (sum(filesInFolderExt == "cpp" |  filesInFolderExt == "R") != 2L) 
+      return(NULL)
     filesInFolder[filesInFolderExt == "R"]
   }))
   if (length(sourceCppRcodePath) != 0) names(sourceCppRcodePath) = NULL
@@ -204,11 +281,14 @@ CharliePara <- function(
   
   
   # print(funNames)
-  tx = paste0("save(", paste0(funNames, collapse = ", "),
-              ", loadedLibNames, commonData, ",
+  tx = paste0("save(", 
+              # paste0(funNames, collapse = ", "),
+              # ", loadedLibNames, commonData, ",
+              "loadedLibNames, commonData, ",
               paste0("file = '", tmpDir, "/commonData.Rdata')"))
   # print(tx)
   eval(parse(text = tx))
+  writeLines(funs2save, paste0(tmpDir, '/funs.R'))
   
   
   datDir = paste0(tmpDir, "/input")
@@ -253,13 +333,13 @@ CharliePara <- function(
     s[[length(s) + 1]] = "sink(lg, type = 'message')"
     s[[length(s) + 1]] = "load(paste0(tmpDir, '/input/t-', i, '-.Rdata'))"
     s[[length(s) + 1]] = "load(paste0(tmpDir, '/commonData.Rdata'))"
+    s[[length(s) + 1]] = "for (x in loadedLibNames) eval(parse(text = paste0('library(', x, ')')))"
+    s[[length(s) + 1]] = "source(paste0(tmpDir, '/funs.R'))"
     if (length(sourceCppRcodePath) != 0)
     {
-      for (x in sourceCppRcodePath) s[[length(s) + 1]] = paste0("source('", x, "')")
+      for (x in sourceCppRcodePath) 
+        s[[length(s) + 1]] = paste0("source('", x, "')")
     }
-    s[[length(s) + 1]] = "for (x in loadedLibNames) eval(parse(text = paste0('library(', x, ')')))"
-    
-    
     s[[length(s) + 1]] = paste0("verbose = ", verbose)
     s[[length(s) + 1]] = "rst = list()"
     s[[length(s) + 1]] = "if (verbose > 0.5 || verbose <= 0) rst = lapply(X, function(x) fun(x, commonData)) else {"
@@ -298,7 +378,8 @@ CharliePara <- function(
     k = 1L
     Nitem2process = blocks[2] - blocks[1]
     gap = max(1L, as.integer(round(Nitem2process * verbose)))
-    if (verbose < 1 && verbose > 0) cat("Core 0 will process N(item) =", Nitem2process, ": ")
+    if (verbose < 1 && verbose > 0) 
+      cat("Core 0 will process N(item) =", Nitem2process, ": ")
     rst = lapply(X[blocks[1]:(blocks[2] - 1L)], function(x) 
     {
       if (verbose < 1 && verbose > 0)
@@ -351,6 +432,10 @@ CharliePara <- function(
 # Test
 if (F)
 {
+  
+  source('R/CharlieMPlib.R')
+  
+  
   # One motivation behind para() is to allow multiprocessing over Rcpp functions
   # compiled and linked in the current R session, without the necessity of
   # tracking and recompilation of those functions in every other process.
@@ -376,9 +461,19 @@ double stu(NumericVector x) { return std::accumulate(x.begin(), x.end(), 0.0); }
   rstTruth = lapply(X, function(x) f(x, y))
   
   
-  rstPara = para(X, commonData = y, fun = f, maxNprocess = 100, wait = TRUE, 
-                 cleanTempFirst = TRUE, keepTempFolder = TRUE,
-                 RscriptExePath = NULL)
+  rstPara = CharliePara(
+    X, commonData = y, fun = f, 
+    maxNprocess = 15L, 
+    MPtempDir = "../tempFiles/C",
+    wait = TRUE,
+    RscriptExePath = NULL,
+    verbose = 0.01,
+    estimatedCosts = NULL
+  )
+    
+  # rstPara = para(X, commonData = y, fun = f, maxNprocess = 100, wait = TRUE, 
+  #                cleanTempFirst = TRUE, keepTempFolder = TRUE,
+  #                RscriptExePath = NULL)
   
   
   # Compare results:
@@ -413,7 +508,7 @@ double stu(NumericVector x) { return std::accumulate(x.begin(), x.end(), 0.0); }
 
 
 
-
+#'
 #' Naive distributed computing
 #' 
 #' Naive multiprocessing on shared disk architecture.
@@ -423,6 +518,8 @@ double stu(NumericVector x) { return std::accumulate(x.begin(), x.end(), 0.0); }
 #' @param commonData  An R object of any type.
 #' 
 #' @param fun  An R function with signature \code{fun(X[[i]], commonData)}.
+#' If \code{fun} is a path string to an R script, the R script will be parsed
+#' into an R function and resupplied to \code{CharliePara()}.
 #' 
 #' @param maxNprocess  Maximum number of processes to spawn. Default 15.
 #' 
@@ -514,12 +611,42 @@ CharlieParaOnCluster <- function(
 {
   
   
+  # If fun is a string of the path to an R script to be executed.
+  if (is.character(fun))
+  {
+    fun = normalizePath(fun)
+    funName = paste0('f_', gsub("[^a-zA-Z0-9]", "_", fun))
+    funBody = c(paste0(
+      funName, " = function(X = NULL, commonData = NULL) {"), 
+      readLines(fun), "}")
+    f = eval( parse(text = paste0(funBody, collapse = "\n")) )
+    return (CharlieParaOnCluster (
+      list(0L), commonData, fun = f, 
+      maxNprocess, 
+      wait,
+      RscriptExePath,
+      clusterHeadnodeAddress,
+      sshPasswordPath,
+      ofilesDir,
+      MPtempDir,
+      jobName,
+      memGBperProcess,
+      NthreadPerProcess,
+      verbose,
+      singletonToCluster
+    ) )
+  }
+  
+  
   dir.create(ofilesDir, showWarnings = F, recursive = T)
   ofilesDir = normalizePath(ofilesDir, winslash = '/')
   
   
   if (length(X) == 0) { # setwd(curDir);
     return(NULL) }
+  
+  
+  funs2save = Cpara__extractAllSeeableFuns__(environment())
   
   
   maxNprocess = max(1L, min(maxNprocess, length(X)))
@@ -548,11 +675,11 @@ CharlieParaOnCluster <- function(
   tmpDir = normalizePath(tmpDir, winslash = "/")
   
   
-  lsobjs = unique(c(ls(envir = .GlobalEnv), ls()))
-  funNames = lsobjs[sapply(lsobjs, function(x)
-  {
-    eval(parse(text = paste0("is.function(", x, ")")))
-  })]
+  # lsobjs = unique(c(ls(envir = .GlobalEnv), ls()))
+  # funNames = lsobjs[sapply(lsobjs, function(x)
+  # {
+  #   eval(parse(text = paste0("is.function(", x, ")")))
+  # })]
   
   
   sourceCppRcodePath = unlist(lapply(getLoadedDLLs(), function(x)
@@ -565,7 +692,8 @@ CharlieParaOnCluster <- function(
     
     
     # Check if there are exactly one .R and one .cpp file in the same directory.
-    if (sum(filesInFolderExt == "cpp" |  filesInFolderExt == "R") != 2L) return(NULL)
+    if (sum(filesInFolderExt == "cpp" |  filesInFolderExt == "R") != 2L) 
+      return(NULL)
     filesInFolder[filesInFolderExt == "R"]
   }))
   if (length(sourceCppRcodePath) != 0) 
@@ -575,10 +703,13 @@ CharlieParaOnCluster <- function(
   loadedLibNames = (.packages())
   
   
-  tx = paste0("save(", paste0(funNames, collapse = ", "),
-              ", loadedLibNames, commonData, ",
+  tx = paste0("save(", 
+              # paste0(funNames, collapse = ", "),
+              # ", loadedLibNames, commonData, ",
+              "loadedLibNames, commonData, ",
               paste0("file = '", tmpDir, "/commonData.Rdata')"))
   eval(parse(text = tx))
+  writeLines(funs2save, paste0(tmpDir, '/funs.R'))
   
   
   datDir = paste0(tmpDir, "/input")
@@ -621,13 +752,15 @@ CharlieParaOnCluster <- function(
     s[[length(s) + 1]] = "sink(lg, type = 'message')"
     s[[length(s) + 1]] = "load(paste0(tmpDir, '/input/t-', i, '-.Rdata'))"
     s[[length(s) + 1]] = "load(paste0(tmpDir, '/commonData.Rdata'))"
+    s[[length(s) + 1]] = "for (x in loadedLibNames) eval(parse(text = paste0('library(', x, ')')))"
+    s[[length(s) + 1]] = "source(paste0(tmpDir, '/funs.R'))"
     if (length(sourceCppRcodePath) != 0)
     {
-      for (x in sourceCppRcodePath) s[[length(s) + 1]] = paste0("try(source('", x, "'))")
+      for (x in sourceCppRcodePath) 
+      {
+        s[[length(s) + 1]] = paste0("try(source('", x, "'), error = 'Shared library does not exist, probably because Rcpp::source() was not called to save the shared library somewhere all Linux cluster nodes can access.')")
+      }
     }
-    s[[length(s) + 1]] = "for (x in loadedLibNames) eval(parse(text = paste0('library(', x, ')')))"
-    
-    
     s[[length(s) + 1]] = paste0("verbose = ", verbose)
     s[[length(s) + 1]] = "rst = list()"
     s[[length(s) + 1]] = 
@@ -725,8 +858,13 @@ CharlieParaOnCluster <- function(
     
     
     if (verbose) cat(
-      "Visit ", clusterHeadnodeAddress, 
+      "ssh ", clusterHeadnodeAddress, 
       " and run `qstat` to check job status.\n", 
+      "To kill a job, run `qdel 123456` where 123456 is the job number.\n",
+      "To kill all jobs, run `qdel -u i56087` where i56087 is the user ID.\n",
+      "To count running jobs, run `qstat -u i56087 -s r | wc -l` where i56087 is the user ID.\n",
+	  "To check a running job's peak memory usage, run `qstat -j 123456`\n",
+	  "To check a finished job's peak memory usage, run `qacct -j 123456`\n",
       "Waiting for ", nfile, " files to show up in ", 
       paste0(tmpDir, "/complete"), " . Do not kill process.\n",
       sep = "")
@@ -778,15 +916,20 @@ if (F)
   # One motivation behind para() is to allow multiprocessing over Rcpp functions
   # compiled and linked in the current R session, without the necessity of
   # tracking and recompilation of those functions in every other process.
+  
+  
+  source('R/CharlieMPlib.R')
+  
+  
   cppFile = "
-// [[Rcpp::plugins(cpp17)]]
+// [[Rcpp::plugins(cpp20)]]
 #include <Rcpp.h>
 using namespace Rcpp;
 // [[Rcpp::export]]
 double stu(NumericVector x) { return std::accumulate(x.begin(), x.end(), 0.0); }
 "
   writeLines(cppFile, con = "tmpCpp.cpp")
-  Rcpp::sourceCpp("tmpCpp.cpp")
+  Rcpp::sourceCpp("tmpCpp.cpp", cacheDir = '../tempFiles')
   
   
   # ============================================================================
@@ -794,15 +937,33 @@ double stu(NumericVector x) { return std::accumulate(x.begin(), x.end(), 0.0); }
   # ============================================================================
   X = lapply(1:10000, function(x) runif(1000))
   y = runif(1000)
-  f = function(x, y) { stu(x) + sum(x * y) }
+  f552417409 = function(x, y) { stu(x) + sum(x * y) }
   
   
-  rstTruth = lapply(X, function(x) f(x, y))
+  rstTruth = lapply(X, function(x) f552417409(x, y))
   
   
-  rstPara = para(X, commonData = y, fun = f, maxNprocess = 100, wait = TRUE, 
-                 cleanTempFirst = TRUE, keepTempFolder = TRUE,
-                 RscriptExePath = NULL)
+  CharlieParaOnCluster(X, commonData = y, fun = f552417409, 
+                       maxNprocess = 90L, 
+                       wait = TRUE,
+                       RscriptExePath = NULL,
+                       clusterHeadnodeAddress = "rscgrid180.air-worldwide.com",
+                       sshPasswordPath = "../data/passwd.Rdata",
+                       ofilesDir = "../tempFiles/Ofiles",
+                       MPtempDir = "../tempFiles/C",
+                       jobName = "CH",
+                       memGBperProcess = 1,
+                       NthreadPerProcess = 1,
+                       verbose = 0.01,
+                       singletonToCluster = FALSE)
+  
+  
+  # rstPara = CharlieParaOnCluster(
+  #   X, commonData = y, fun = f, 
+  #   maxNprocess = 100, 
+  #   wait = TRUE, 
+  #   cleanTempFirst = TRUE, keepTempFolder = TRUE,
+  #                RscriptExePath = NULL)
   
   
   # Compare results:
@@ -825,7 +986,6 @@ double stu(NumericVector x) { return std::accumulate(x.begin(), x.end(), 0.0); }
   
   
 }
-
 
 
 

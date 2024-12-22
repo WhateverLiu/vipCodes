@@ -1,10 +1,15 @@
+#pragma once
+#include "isVector.hpp"
+#include "mmcp.hpp"
+
+
 namespace Charlie {
 
 
 // =============================================================================
 // VecPool is not thread-safe. Create a VecPool for each thread.
-// You have done enough. There has been so many ideas. The most advanced 
-//   attempt we have tried is (i) write a class vec that inherits from std::vector,
+// You have done enough. You have tried so much. The most advanced 
+//   attempt you have tried is (i) write a class vec that inherits from std::vector,
 //   (ii) inside the constructor and destructor of this new class, we would do
 //   std::this_thread::get_id() to find which VecPool should we use.
 //   This way, we can use vec freely and exactly like how we
@@ -12,19 +17,20 @@ namespace Charlie {
 //   and is not an index. We would need to use a hashtable to find the VecPool
 //   lendn the thread id. Attempt of inheriting std::thread will get hairy fast.
 //   
-//   Now, don't think too much about persistent vectors or temp vectors inside
-//     a class. It would be only a matter of putting the VecPool reference in
-//     the function argument, or better, putting it as a function member and 
-//     writing a destructor if you want to be more diligent.
+// Now, don't think too much about persistent vectors or temp vectors inside
+//   a class. It would be only a matter of putting the VecPool reference in
+//   the function argument, or better, putting it as a function member and 
+//   writing a destructor if you want to be more diligent.
 // =============================================================================
 class VecPool
 {
 private:
-  std::vector<std::vector<char>> X;
+  std::vector<std::vector<char> > X;
   
   
+  // Will zero both vectors' sizes. Capacities do not change.
   template <typename S, typename T>
-  void swap(std::vector<S> &s, std::vector<T> &t)
+  void darkSwap(std::vector<S> &s, std::vector<T> &t)
   {
     static_assert(sizeof(s) == sizeof(t));
     static_assert(sizeof(char*) == sizeof(std::size_t));
@@ -34,16 +40,16 @@ private:
     if constexpr ( std::is_same<S, T>::value ) { s.swap(t); }
     else
     {
-      if constexpr ( std::is_same<T, char>::value ) swap(t, s);
+      if constexpr ( std::is_same<T, char>::value ) darkSwap(t, s);
       else
       {
         if constexpr (std::is_same<S, char>::value) // s is char vector, but t is not.
         {
-          std::size_t mem[3];
-          mmcp(mem, &s, sizeof(s));
-          mem[2] -= (mem[2] - mem[0]) % sizeof(T);
-          mmcp(&s,  &t, sizeof(s));
-          mmcp(&t, mem, sizeof(s));
+          std::size_t memT[3];
+          mmcp(memT, &s, sizeof(s));
+          memT[2] -= (memT[2] - memT[0]) % sizeof(T);
+          mmcp(&s,  &t,  sizeof(s));
+          mmcp(&t, memT, sizeof(t));
         }
         else
         {
@@ -56,44 +62,6 @@ private:
         }
       }
     }
-    
-  }
-  
-  
-  // ===========================================================================
-  // Swap a std::vector<T> and a std::vector<char>.
-  // ===========================================================================
-  template<typename T> // rst is of size 0.
-  void T2char(std::vector<T> &x, std::vector<char> &rst)
-  { 
-    static_assert(sizeof(x) == sizeof(std::vector<char>));
-    x.resize(0); // Call destructors on all elements but maintain capacity.
-    char mem[sizeof(x)]; // Start swapping.
-    mmcp(mem,  &rst, sizeof(x));
-    mmcp(&rst, &x,   sizeof(x));
-    mmcp(&x,   mem,  sizeof(x));
-  } 
-  
-  
-  // ===========================================================================
-  // Swap a std::vector<char> and a std::vector<T>.
-  // ===========================================================================
-  template<typename T>
-  std::vector<T> char2T(std::vector<char> &x)
-  {  
-    static_assert(sizeof(x) == sizeof(std::vector<T>));
-    x.resize(0);
-    std::vector<T> rst;
-    std::size_t mem[3];
-    mmcp(mem, &x, sizeof(x));
-    // =========================================================================
-    // Adjust the capacity pointer to ensure the capacity is a multiple 
-    //   of sizeof(T).
-    // =========================================================================
-    mem[2] -= (mem[2] - mem[0]) % sizeof(T);
-    mmcp(&x,  &rst, sizeof(x));
-    mmcp(&rst, mem, sizeof(x));
-    return rst;
   }
   
   
@@ -103,42 +71,34 @@ private:
   template<typename T>
   std::vector<T> lendCore(std::size_t size)
   {
-    if (X.size() == 0)
-    {
-      std::vector<T> rst(size + 1); // Always prefer slightly larger capacity.
-      rst.pop_back();
-      return rst;
-    }
-    auto rst = char2T<T> (X.back());
-    rst.resize(size + 1); // Always prefer slightly larger capacity.
-    rst.pop_back();
+    if (X.size() == 0) return std::vector<T> (size);
+    std::vector<T> rst;
+    darkSwap(rst, X.back());
+    rst.resize(size);
     X.pop_back();
     return rst;
   }
   
   
   // ===========================================================================
-  // Recall the vector of an arbitrary type. The function will first clear
-  // the vector --- call desctructor on all elements, and then fetch the
-  // container back to pool.
+  // Recall the vector of a type that is not a vector.
   // ===========================================================================
   template<typename T>
   void recallCore(std::vector<T> &x) // invalidates everything related to x.
   { 
     if (x.capacity() == 0) return;
-    x.resize(0); // Does not deallocate the container. This MUST go first
-    // because T might not be trivial.
+    x.resize(0); 
     // =========================================================================
     // Do not directly do X.emplace_back(x). This will have no effect since
     //   T2char(x).size() == 0. emplace_back ignores zero-size vectors. Tricky!
     // =========================================================================
     X.emplace_back(std::vector<char>());
-    T2char(x, X.back());
+    darkSwap(x, X.back());
   }
   
 
 public:
-  std::vector<std::vector<char>> & getPool() { return X; }
+  std::vector<std::vector<char> > & getPool() { return X; }
   void test0(); // Test if std::vector is implemented as 3 pointers.
   void test1(); // Test if vectors fetched from or recalled to VecPool are handled correctly.
   void test2(); // Test if nested vectors can be handled correctly.
@@ -189,22 +149,51 @@ public:
   }
   
   
-  template <typename In, typename Out, typename... Args>
-  auto exchange(std::vector<In> &x, std::size_t size, Args... restSizes)
+  // Exchange the input vector for another vector.
+  template <typename Out, typename In, typename... Args>
+  auto swap ( std::vector<In> &x, Args... restSizes )
   {
-    recall(x);
-    return lend(size, ...restSizes);
+    // If the input vector is not nested and output vector is also not nested,
+    //   take a shortcut.
+    static_assert(sizeof...(restSizes) != 0);
+    if constexpr ( !isVector<In>()() and !isVector<Out>()() and 
+                     sizeof...(restSizes) == 1 )
+    {
+      std::vector<Out> rst;
+      darkSwap(rst, x);
+      rst.resize(restSizes...);
+      return rst;
+    }
+    else
+    {
+      recall(x);
+      return lend(restSizes...);
+    }
   }
   
   
-  VecPool()
+  VecPool(int size = 25)
   {
     std::srand(std::time(nullptr));
     test0();
     test1();
     test2();
-    std::vector<std::vector<char>>().swap(X);
+    std::vector<std::vector<char> >(size).swap(X);
   }
+  
+  
+  std::size_t totalAllocByte()
+  {
+    std::size_t rst = 0;
+    for (auto &x: X) rst += x.capacity();
+    return rst;
+  }
+  
+  
+  std::size_t totalAllocContainers()
+  {
+    return X.size();
+  } 
   
   
 };
@@ -225,6 +214,7 @@ void VecPool::test0()
   typedef std::tuple<char, char, char> tupe; // Arbitrarily selected type.
   std::vector<tupe> a(fullSize); // Just for creating a vector of an arbitrary type.
   a.resize(subSize); // Downsize the vector.
+  // Rcout << "1.1\n";
   
   
   // ===========================================================================
@@ -235,6 +225,7 @@ void VecPool::test0()
   auto ptr = (std::size_t*)(&a); // Read but won't write.
   bool sizePointerCool     = ptr[0] + sizeof(tupe) * subSize  == ptr[1];
   bool capacityPointerCool = ptr[0] + sizeof(tupe) * fullSize == ptr[2];
+  // Rcout << "1.2\n";
   
   
   if (!sizePointerCool or !capacityPointerCool) throw std::runtime_error(
@@ -291,6 +282,20 @@ void VecPool::test1()
   if (std::size_t(X.back().data()) + sizeof(double) != std::size_t(dptr) ) 
     throw std::runtime_error(
         "VecPool initiailization: Last in pool is a different container -- 2.\n");
+  
+  
+  // ===========================================================================
+  // Test swap().
+  // ===========================================================================
+  auto e = lend<double> (rand() % 11 + 9);
+  for (auto &x: e) x = rand() * 1e-8;
+  double S = std::accumulate(e.begin(), e.end(), 0.0);
+  auto edata = e.data();
+  auto f = swap<short> ( e, e.size() / 3 * 2 );
+  double Sf = std::accumulate(f.begin(), f.end(), 0.0);
+  if ((char*)f.data() != (char*)edata) throw std::runtime_error(
+    ".swap() is not working correctly. Some garbage value = " + 
+      std::to_string(Sf + S) + ".\n");
 }
 
 

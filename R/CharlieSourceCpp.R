@@ -24,7 +24,14 @@ getRcppRelatedIncludePath <- function(pkgNames)
 #' library include paths, shared library paths instead of relying on the
 #' \code{R CMD} toolchain. The function also accepts sanitizer flags.
 #' Compiling with sanitizers requires a new R session invoked on Linux like this: 
-#' \code{LD_PRELOAD="/lib64/libasan.so.5 /lib64/libubsan.so.1"  R}
+#' 
+#' \code{  LD_PRELOAD="/home/i56087/opt/gcc-13/lib64/libasan.so  /home/i56087/opt/gcc-13/lib64/libubsan.so"  R  }.
+#' 
+#' In \code{/home/i56087/opt/gcc-13/lib64}, one can find files like 
+#' \code{libasan.so, libasan.8.so, libasan.8.0.0.so}. The first two are symbolic
+#' links to the last one. Using the symbolic link here is sufficient.
+#' 
+#' For older compilers native to the Linux system, do \code{  LD_PRELOAD="/lib64/libasan.so.5  /lib64/libubsan.so.1"  R  }
 #' 
 #' @param file  Path to the C++ script.
 #' 
@@ -41,10 +48,11 @@ getRcppRelatedIncludePath <- function(pkgNames)
 #' Libraries referenced using \code{// [[Rcpp::depends(XXX)]]} do not need to
 #' included.
 #' 
-#' @param dllLinkFilePaths  A vector of paths to shared library to be linked.
+#' @param dllLinkFilePaths  A vector of paths to shared libraries to be linked.
 #' Internally, the function will use \code{-L} to link the directories of 
 #' these libraries, and then use \code{-l} to link the shared libraries without
-#'  their extension names.
+#' their extension names. Be careful that sometimes you would need to add or
+#' skip the \code{lib} prefix.
 #'  
 #' @param sanitize  A boolean. \code{TRUE} will add the sanitizer flags.
 #' 
@@ -67,13 +75,13 @@ CharlieSourceCpp <- function (
   
   env = globalenv(), 
   
-  compilerPath = c('/opt/rh/gcc-toolset-12/root/bin/g++', Sys.which('g++')),
+  compilerPath = c('/home/i56087/opt/gcc-13/bin/g++', Sys.which('g++')),
   
-  optFlag = '-O2',
+  optFlag = '-O3',
   
   cppStd = '-std=gnu++20',
   
-  flags = '-shared -DNDEBUG -Wall -fpic -m64 -march=native -mfpmath=sse -msse2 -mstackrealign',
+  flags = '-shared -DNDEBUG -Wall -fpic -ltbb',
   
   includePaths = c(
     R.home('include'), 
@@ -108,6 +116,16 @@ CharlieSourceCpp <- function (
     }
   }
   
+  
+  if (compilerPath == '/home/i56087/opt/gcc-13/bin/g++')
+  {
+    # system("sudo cp /home/i56087/opt/gcc-13/lib64/libstdc++.so.6.0.32 /lib64")
+    # system("sudo cp /home/i56087/opt/gcc-13/lib64/libstdc++.so.6 /lib64")
+    # file.copy("/home/i56087/opt/gcc-13/lib64/libstdc++.so.6.0.32",
+    #           "/lib64", overwrite = F)
+    dyn.load("/home/i56087/opt/gcc-13/lib64/libstdc++.so.6.0.32")
+  }
+
   
   flags = paste0(cppStd, ' ', flags)
   

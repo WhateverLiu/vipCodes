@@ -8,6 +8,7 @@ namespace Charlie {
 #include "xxhash.h"
 
 
+/*
 inline std::size_t xxhash(const void *x, std::size_t Nbyte, std::size_t seed)
 {
   return XXH64(x, Nbyte, seed);
@@ -18,12 +19,29 @@ inline std::size_t xxhash(const void *x, std::size_t Nbyte)
 {
   return XXH3_64bits(x, Nbyte);
 }
+*/
+
+struct xxhash
+{
+  xxhash() = default;
+  std::size_t operator()(const void *x, std::size_t Nbyte)
+  {
+    return XXH3_64bits(x, Nbyte);
+  }
+  std::size_t operator()(const void *x, std::size_t Nbyte, std::size_t seed)
+  {
+    return XXH64(x, Nbyte, seed);
+  }
+};
+
+
+
 
 
 #undef XXH_IMPLEMENTATION
 #undef XXH_STATIC_LINKING_ONLY
 
-
-
-
 }
+
+
+
